@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+
+# SQLite 数据库文件
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# 日志
+*.log
+logs/
+
+# 环境变量
+.env
+.env.*
+!.env.example
+
+# 编辑器/工具
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# 系统
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
