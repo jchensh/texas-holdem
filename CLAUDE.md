@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Texas Hold'em 网页扑克游戏，供朋友间在线联机娱乐使用。
 
+**开发进度与历史**：每个 step 完成后追加到 `HISTORY.md`。新会话恢复上下文时**先读 `HISTORY.md`**，再看 `git log --oneline`。
+
 ## 技术栈
 
 - **后端**：Node.js + Express + Socket.IO
@@ -51,3 +53,15 @@ public/
 - 所有代码注释和文档用中文
 - 前端不引入任何构建工具或框架
 - 保持文件结构简单清晰
+
+## 本地开发
+
+- **启动服务**：`npm start` 或 `node server/index.js`，默认 http://localhost:3000
+- **数据库**：首次启动自动建 `data/poker.db`，schema 用 `IF NOT EXISTS` 幂等，无迁移系统
+- **环境变量**：拷 `.env.example` 为 `.env`。dev 可全部缺省；**生产必须**设 `SESSION_SECRET`
+- **⚠ 系统代理坑（重要）**：开发机配了系统级代理（`HTTP_PROXY=http://127.0.0.1:7897`，常见 Clash 端口），它会把 **localhost 请求也代理走**，导致 `curl` / `wget` / Node fetch / 任何走 libcurl 的工具直接收到代理返回的 **502 / 302**。在终端调试本地 server 前先设：
+  ```
+  export NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1
+  ```
+  或在 curl 上加 `--noproxy 'localhost,127.0.0.1'`（**引号必须加**，否则 shell 把 `*` 当通配展开）。
+  浏览器、Node 程序内部（不走代理）均不受影响——只有命令行客户端有此问题。

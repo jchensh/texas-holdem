@@ -30,12 +30,40 @@ const App = {
 
   // ── 启动 ──────────────────────────────────────────
 
-  init() {
+  async init() {
     this._bindAuthEvents();
     this._bindGameEvents();
     this._bindHistoryEvents();
     this._bindRaiseSlider();
-    this._showView('auth');
+
+    // 尝试用 cookie session 恢复登录态；失败就停在 auth 视图
+    try {
+      const { user } = await this._apiGet('/api/me');
+      this._onLoginSuccess(user);
+    } catch {
+      this._showView('auth');
+    }
+  },
+
+  // ── HTTP API 辅助 ─────────────────────────────────
+
+  async _apiPost(path, body) {
+    const res = await fetch(path, {
+      method:      'POST',
+      headers:     { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body:        body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `请求失败 (${res.status})`);
+    return data;
+  },
+
+  async _apiGet(path) {
+    const res = await fetch(path, { credentials: 'same-origin' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `请求失败 (${res.status})`);
+    return data;
   },
 
   // ── 视图切换 ──────────────────────────────────────
@@ -67,11 +95,7 @@ const App = {
       errEl.textContent = '';
 
       try {
-        // TODO: const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
-        // TODO: if (!res.ok) throw new Error((await res.json()).message);
-        // TODO: const { user } = await res.json();
-        // 占位符：直接进入
-        const user = { username, chips: 1000 };
+        const { user } = await this._apiPost('/api/login', { username, password });
         this._onLoginSuccess(user);
       } catch (err) {
         errEl.textContent = err.message || '登录失败';
@@ -86,15 +110,13 @@ const App = {
       const errEl = document.getElementById('register-error');
       errEl.textContent = '';
 
+      // 客户端预校验（后端会再校一次，但这里能立即反馈）
       if (username.length < 3) { errEl.textContent = '用户名至少3个字符'; return; }
       if (password.length < 6) { errEl.textContent = '密码至少6位'; return; }
       if (password !== confirm) { errEl.textContent = '两次密码不一致'; return; }
 
       try {
-        // TODO: const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
-        // TODO: if (!res.ok) throw new Error((await res.json()).message);
-        // TODO: const { user } = await res.json();
-        const user = { username, chips: 1000 };
+        const { user } = await this._apiPost('/api/register', { username, password });
         this._onLoginSuccess(user);
       } catch (err) {
         errEl.textContent = err.message || '注册失败';
@@ -112,20 +134,30 @@ const App = {
     document.getElementById('hero-chips').textContent     = user.chips;
     document.getElementById('history-chips').textContent  = user.chips;
 
-    SocketClient.connect(null); // TODO: 传入 session token
+    SocketClient.connect(null); // TODO: step 4 接入 socket，session cookie 自动同源带上
     this._showView('game');
     document.getElementById('lobby-overlay').style.display = 'flex';
-    // 把自己加入大厅列表
+    // 重置大厅（避免登出后重登残留旧条目）
+    document.getElementById('lobby-players').innerHTML = '';
+    document.getElementById('lobby-count').textContent = '1';
     this._addLobbyPlayer(user.username);
   },
 
   // ── 游戏内事件 ────────────────────────────────────
 
   _bindGameEvents() {
-    document.getElementById('btn-logout').addEventListener('click', () => {
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+      // 失败也无所谓——客户端无论如何要切回 auth
+      try { await this._apiPost('/api/logout'); } catch {}
       SocketClient.disconnect();
       this.state.user = null;
       this.state.game = null;
+      // 清空登录态残留
+      document.getElementById('login-password').value = '';
+      document.getElementById('reg-password').value   = '';
+      document.getElementById('reg-confirm').value    = '';
+      document.getElementById('login-error').textContent    = '';
+      document.getElementById('register-error').textContent = '';
       this._showView('auth');
     });
 
