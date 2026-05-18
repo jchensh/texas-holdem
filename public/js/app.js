@@ -136,11 +136,31 @@ const App = {
 
     SocketClient.connect(null); // TODO: step 4 接入 socket，session cookie 自动同源带上
     this._showView('game');
-    document.getElementById('lobby-overlay').style.display = 'flex';
     // 重置大厅（避免登出后重登残留旧条目）
     document.getElementById('lobby-players').innerHTML = '';
-    document.getElementById('lobby-count').textContent = '1';
+    this._updateLobbyCount(1);
     this._addLobbyPlayer(user.username);
+    this._showLobby();
+  },
+
+  // ── 大厅蒙层 / 等待角标 ───────────────────────────
+
+  _showLobby() {
+    document.getElementById('lobby-overlay').style.display = 'flex';
+    document.getElementById('waiting-indicator').hidden = true;
+  },
+
+  _hideLobby() {
+    document.getElementById('lobby-overlay').style.display = 'none';
+    // 游戏还没开始就显示角标；已开局则两个都不显示
+    if (!this.state.game) {
+      document.getElementById('waiting-indicator').hidden = false;
+    }
+  },
+
+  _updateLobbyCount(n) {
+    document.getElementById('lobby-count').textContent = String(n);
+    document.getElementById('waiting-count').textContent = `${n} / 6`;
   },
 
   // ── 游戏内事件 ────────────────────────────────────
@@ -165,6 +185,11 @@ const App = {
       this._loadHistory();
       this._showView('history');
     });
+
+    // 大厅蒙层的关闭按钮 + 角标点击切换
+    document.getElementById('lobby-close')      .addEventListener('click', () => this._hideLobby());
+    document.getElementById('lobby-dismiss')    .addEventListener('click', () => this._hideLobby());
+    document.getElementById('waiting-indicator').addEventListener('click', () => this._showLobby());
 
     document.getElementById('btn-fold').addEventListener('click', () => {
       SocketClient.emit.fold();
@@ -255,7 +280,9 @@ const App = {
   /** 主状态更新入口，接收完整 GameState 快照 */
   updateGameState(state) {
     this.state.game = state;
+    // 游戏开始：彻底收掉蒙层和角标
     document.getElementById('lobby-overlay').style.display = 'none';
+    document.getElementById('waiting-indicator').hidden = true;
 
     document.getElementById('pot-amount').textContent = state.pot ?? 0;
 
@@ -414,7 +441,7 @@ const App = {
 
   /** 玩家加入大厅 */
   onPlayerJoined(data) {
-    document.getElementById('lobby-count').textContent = data.totalCount;
+    this._updateLobbyCount(data.totalCount);
     this._addLobbyPlayer(data.username);
   },
 

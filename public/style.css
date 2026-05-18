@@ -555,6 +555,7 @@ input  { font-family: inherit; outline: none; }
 }
 
 .lobby-card {
+  position: relative;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -565,6 +566,70 @@ input  { font-family: inherit; outline: none; }
   align-items: center;
   gap: 14px;
   box-shadow: 0 30px 80px rgba(0,0,0,.7);
+}
+
+/* 蒙层右上角的关闭按钮 */
+.lobby-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 10px 4px;
+  border-radius: 8px;
+  transition: background .15s, color .15s;
+}
+.lobby-close:hover { background: rgba(255,255,255,.08); color: #fff; }
+
+/* 蒙层底部"先看看牌桌"按钮 */
+.lobby-dismiss { margin-top: 6px; }
+
+/* 左下角的等待角标 */
+.waiting-indicator {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px 9px 13px;
+  background: rgba(0,0,0,.72);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  color: var(--text-primary, #eee);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background .15s, transform .15s;
+}
+.waiting-indicator:hover {
+  background: rgba(0,0,0,.85);
+  transform: translateY(-1px);
+}
+.waiting-indicator[hidden] { display: none; }
+.waiting-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--gold, #fbbf24);
+  animation: waiting-pulse 1.6s ease-out infinite;
+}
+@keyframes waiting-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(251,191,36,.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(251,191,36,0); }
+  100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+}
+.waiting-count {
+  background: rgba(255,255,255,.10);
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
 }
 .lobby-suits { font-size: 22px; letter-spacing: 10px; color: var(--text-muted); }
 .lobby-card h2 { font-size: 24px; color: var(--gold); }

@@ -224,16 +224,25 @@
     </div><!-- .table-scene -->
   </main>
 
-  <!-- 大厅等候蒙层 -->
+  <!-- 大厅等候蒙层（可关闭） -->
   <div class="overlay" id="lobby-overlay">
     <div class="lobby-card">
+      <button class="lobby-close" id="lobby-close" type="button" aria-label="关闭">×</button>
       <div class="lobby-suits">♠ ♥ ♦ ♣</div>
       <h2>等待开局</h2>
       <p class="lobby-count">已入座 <span id="lobby-count">1</span> / 6 名玩家</p>
       <div class="lobby-player-list" id="lobby-players"></div>
       <p class="lobby-hint">至少需要 2 名玩家才能开始</p>
+      <button class="btn-ghost lobby-dismiss" id="lobby-dismiss" type="button">先看看牌桌</button>
     </div>
   </div>
+
+  <!-- 左下角等待角标（蒙层关闭后显示，点击重开蒙层） -->
+  <button class="waiting-indicator" id="waiting-indicator" type="button" hidden>
+    <span class="waiting-dot"></span>
+    <span class="waiting-text">等待其他玩家</span>
+    <span class="waiting-count" id="waiting-count">1 / 6</span>
+  </button>
 
 </div><!-- #view-game -->
 
