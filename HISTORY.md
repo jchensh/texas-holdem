@@ -100,6 +100,53 @@
 
 ---
 
+## Step 5 — 扑克引擎（2026-05-20，待提交）
+
+**目标**：纯逻辑的德州扑克引擎，覆盖牌堆 / 7选5 牌力 / 边池 / 一手牌生命周期，全部可独立单测，不依赖 socket 或 db。
+
+**产出**（全部在 `server/engine/`）：
+- `deck.js` — 52 张牌结构 + Fisher–Yates 洗牌（rng 可注入便于测试）+ `deal(deck, n)` 从顶 pop
+- `hand-rank.js` — 7选5 评估器：
+  - `evaluate5(cards)` 给 5 张返回 `{category, tiebreakers, cards}`
+  - `evaluate7(cards)` 枚举 C(7,5)=21 个组合取最优
+  - `compareScore(a, b)` 字典序比较 score 数组
+  - 9 个 category：同花顺 > 四条 > 葫芦 > 同花 > 顺子 > 三条 > 两对 > 一对 > 高牌；wheel A-2-3-4-5 按 5 算
+- `pot.js` — 边池切分：
+  - `computePots(contributors)` 按 all-in 层级切；弃牌玩家的钱进 pot 但他无资格
+  - `distribute(pots, pickWinners)` 按赢家分；平分有余数时从前依序加 1
+- `game.js` — 一手牌的状态机 `Game` 类：
+  - 构造时发手牌、贴盲、定首动者（heads-up = SB 先；3+ = UTG = BB 下家先）
+  - `act(seatId, {type, amount?})` 处理 fold/check/call/raise，返回 `continue | round_end | hand_end`
+  - 加注重新打开他人行动；只剩 1 人未弃牌 → 立即结束；≤1 个 active 但还有 all-in → 直接发完公共牌摊牌
+  - `getPublicState(viewerSeatId)` 给前端的快照：viewer 看到自己的 holeCards，其他遮蔽；手牌结束后所有人可见
+- `index.js` — barrel 导出
+- 配套 `*.test.js` 共 **48 个用例全过**
+
+**关键决策**：
+- **测试用例可控**：`Game` 构造接受可注入的 `deck` 参数；测试里用 `deckOf('As','Ks',...)` 帮手把牌放到 pop 顺序对的位置
+- **V1 简化**：all-in 小于 minRaise 仍重新打开行动（标准规则不重新打开，留到 V2）；无 burn card（不烧底牌）
+- **状态字段三层**：`chips`（手头）/ `currentBet`（本街投入）/ `totalBet`（本手累计），分别服务"还能 raise 多少 / 还差多少跟 / 切边池"
+- **floor 余数派发**：平分有余数时从第一个赢家开始派 +1，避免 `Math.floor` 后凭空消失
+- **包测试脚本**修正：`npm test` 原本是 `node --test server/`，但 Node 把目录路径当成单个测试文件，应改成 `node --test`（自动发现 `**/*.test.js`）
+
+**冒烟测试**（`npm test`，48 个全过）：
+
+| 模块 | 测试数 | 覆盖 |
+|------|--------|------|
+| deck | 7 | 构造 / 洗牌确定性 / 发牌 |
+| hand-rank | 19 | 全 9 种 category + wheel + 7 选 5 + 比较 |
+| pot | 8 | 主池 / 多层边池 / 弃牌资格 / 平分余数 |
+| game | 14 | 盲注、首动、行动校验、弃牌胜出、heads-up/3 人摊牌、all-in 边池、平局 |
+
+**遗留 / 给 step 6 的提示**：
+- `Game` 是单手牌实例；房间生命周期（多手轮换、dealer button 移位、坐站、断线重连）由 step 6 处理
+- `getPublicState` 直接序列化下发即可；前端 `App.updateGameState` 已经按这个 schema 写
+- `actionLog` 已包含每一步行动，step 7 写 `hand_history.action_summary` 字段时直接 stringify
+- `results.summary[i]` 提供 `{ result, profit, chipsAfter, categoryName }`，恰好对应 `hand_history` 的列
+- 若 minRaise / all-in raise 想升级成标准规则，集中在 `act()` 的 raise 分支
+
+---
+
 ## Step 4 — Socket.IO 握手 + 大厅广播（2026-05-20，待提交）
 
 **目标**：把实时通道铺好，登录后浏览器和服务器通过 Socket.IO 双向连接；大厅玩家列表从本地"假数据"切到服务端广播。
@@ -190,7 +237,7 @@ index.html
 | 2 | 后端认证 + SQLite schema | ✅ commit `cba9ab4` |
 | 3 | 前端接入认证 API | ✅ commit `424119f`（+ UI 微调 `e7dc2d0`） |
 | 4 | Socket.IO 握手 + 大厅（玩家列表广播） | ✅ 2026-05-20（待提交） |
-| 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ⏳ |
+| 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ✅ 2026-05-20（待提交） |
 | 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ⏳ |
 | 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ⏳ |
 | 8 | Railway 部署（持久卷、健康检查、`SESSION_SECRET`） | ⏳ |
