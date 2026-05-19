@@ -100,6 +100,50 @@
 
 ---
 
+## Step 4 — Socket.IO 握手 + 大厅广播（2026-05-20，待提交）
+
+**目标**：把实时通道铺好，登录后浏览器和服务器通过 Socket.IO 双向连接；大厅玩家列表从本地"假数据"切到服务端广播。
+
+**产出**：
+- `server/index.js` — 拆出 `http.createServer(app)` 包一层，挂 `socket.io`；把 `cookieSession(...)` 抽成 `sessionMiddleware` 实例，Express 和 `io.engine.use()` 共用同一份，握手请求即可读到 `req.session.userId`
+- `server/lobby.js`（新）— 大厅状态机：
+  - 在 `io.use()` 里做握手鉴权：拿 `socket.request.session.userId` 查库，没有就 `next(new Error('未登录'))`
+  - 连接/断开都 `io.emit('lobby_state', buildLobbyState())`，全员广播
+  - `buildLobbyState()` 按 `userId` 去重——同一用户开多 tab 只算一人
+- `public/index.html` — 加 `<script src="/socket.io/socket.io.js"></script>`（Socket.IO 自带的 client，无需 npm 安装）
+- `public/js/socket.js` — 实装：
+  - `connect()` 不再要 token；`io({ withCredentials: true })`，cookie 自动同源带上
+  - `_bindEvents()` 把所有占位注释展开成真实 `socket.on(...)`，`lobby_state → App.updateLobby`
+  - `emit.*` 全部接 `socket.emit`
+- `public/js/app.js` — `_onLoginSuccess` 不再本地塞自己进大厅列表，改为先清空 + 显示蒙层，等服务端 `lobby_state` 广播过来重建；新增 `updateLobby(data)` 整列表重建
+- `scripts/smoke-step4.js`（新）— Socket.IO 端到端冒烟脚本
+- `package.json` — `socket.io-client` 加为 devDependency（只给冒烟脚本用，生产不打包）
+
+**关键决策**：
+- **session 共享**用 `io.engine.use(sessionMiddleware)` 而不是手撕 cookie 解析。代价：cookie-session 的内部表达和 Express 完全一致，零分歧。
+- **去重维度**用 `userId`（不是 `socket.id`），多端登录 / tab 切换不会让自己出现两次。
+- 鉴权失败用 `next(new Error('未登录'))`，客户端 `connect_error` 拿到的就是这条人话信息。
+- 没有持久化在线状态——服务器重启意味着所有人需要重新连接。V1 单进程，可接受。
+- 没做"是否落座"概念——大厅只显示"谁在线"。step 5 引擎接入后再引入 `seatId` / `ready`。
+
+**冒烟测试**（`PORT=3010 node server/index.js` + `PORT=3010 node scripts/smoke-step4.js`，5 个用例全过）：
+
+| # | 用例 | 期望 | 实际 |
+|---|------|------|------|
+| 1 | 未登录 socket 握手 | `connect_error` | ✅ `未登录` |
+| 2 | A 登录后连接 | 收到 `count=1`，列表含自己 | ✅ |
+| 3 | B 加入 | A 和 B 都收到 `count=2` | ✅ |
+| 4 | A 开第二条 socket | `count` 仍为 2（按 userId 去重） | ✅ |
+| 5 | A 全部断开 | B 收到 `count=1`，只剩 B | ✅ |
+
+**遗留 / 给 step 5 的提示**：
+- `lobby_state` 现在只有 `{ username, chips }`。step 5 起需要扩成"已就绪 / 座位号"，建议新事件 `seat_state` 区分。
+- 大厅蒙层目前显示的还是泛泛的"等待玩家"，可以等 step 5 落座后改成"已就绪 N / 6"。
+- `socket.io` server 没启 CORS——同源部署没事，万一前后端分离要加 `cors` 配置。
+- `requireAuth` 中间件目前只给 Express 用，没有给 socket 复用；lobby.js 里的鉴权逻辑和它有少量重复（都是查 `findById`）。后续如果要加 socket 路由更多，考虑抽公共。
+
+---
+
 ## Step 3.1 — 大厅蒙层可关闭（2026-05-19，commit `e7dc2d0`）
 
 **目标**：登录后大厅蒙层锁死整个 game 视图、看不到牌桌，体验不好。让它可关闭。
@@ -145,7 +189,7 @@ index.html
 | 1 | 前端三视图骨架 + 依赖清单 | ✅ commit `61fc49a` |
 | 2 | 后端认证 + SQLite schema | ✅ commit `cba9ab4` |
 | 3 | 前端接入认证 API | ✅ commit `424119f`（+ UI 微调 `e7dc2d0`） |
-| 4 | Socket.IO 握手 + 大厅（落座 / 离座 / 玩家列表广播） | ⏳ |
+| 4 | Socket.IO 握手 + 大厅（玩家列表广播） | ✅ 2026-05-20（待提交） |
 | 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ⏳ |
 | 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ⏳ |
 | 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ⏳ |

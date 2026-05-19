@@ -3,31 +3,38 @@
  *
  * - Express 提供 HTTP API 与静态文件托管
  * - cookie-session 用 HMAC 签名 cookie 保存 userId
- * - Socket.IO 留待 step 6 接入
+ * - Socket.IO 复用同一份 cookie-session 中间件，握手时即可拿到 req.session.userId
  */
+const http          = require('http');
 const path          = require('path');
 const express       = require('express');
 const cookieSession = require('cookie-session');
+const { Server: SocketIOServer } = require('socket.io');
 
 const config = require('./config');
 const auth   = require('./auth');
+const lobby  = require('./lobby');
 
-const app = express();
+const app    = express();
+const server = http.createServer(app);
 
 // Railway 等反代会终止 SSL，需信任 X-Forwarded-Proto 才能让 secure cookie 工作
 if (config.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-app.use(express.json());
-app.use(cookieSession({
+// 提取中间件实例，Express 和 Socket.IO engine 都要用同一个
+const sessionMiddleware = cookieSession({
   name:     'poker_session',
   keys:     [config.SESSION_SECRET],
   maxAge:   config.SESSION_MAX_AGE_MS,
   httpOnly: true,
   sameSite: 'lax',
   secure:   config.NODE_ENV === 'production',
-}));
+});
+
+app.use(express.json());
+app.use(sessionMiddleware);
 
 // 业务路由
 app.use('/api', auth.router);
@@ -39,6 +46,11 @@ app.use(express.static(publicDir));
 // SPA 默认页
 app.get('/', (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
 
-app.listen(config.PORT, () => {
+// Socket.IO — 复用 cookie-session 中间件，握手请求也能读到 req.session
+const io = new SocketIOServer(server);
+io.engine.use(sessionMiddleware);
+lobby.attach(io);
+
+server.listen(config.PORT, () => {
   console.log(`[Poker Night] 已启动 → http://localhost:${config.PORT}  (${config.NODE_ENV})`);
 });

@@ -134,13 +134,13 @@ const App = {
     document.getElementById('hero-chips').textContent     = user.chips;
     document.getElementById('history-chips').textContent  = user.chips;
 
-    SocketClient.connect(null); // TODO: step 4 接入 socket，session cookie 自动同源带上
     this._showView('game');
-    // 重置大厅（避免登出后重登残留旧条目）
+    // 重置大厅，等服务端 lobby_state 广播过来填真实列表
     document.getElementById('lobby-players').innerHTML = '';
-    this._updateLobbyCount(1);
-    this._addLobbyPlayer(user.username);
+    this._updateLobbyCount(0);
     this._showLobby();
+    // session cookie 同源握手时浏览器自动带上
+    SocketClient.connect();
   },
 
   // ── 大厅蒙层 / 等待角标 ───────────────────────────
@@ -439,10 +439,20 @@ const App = {
     // TODO: 翻开对手手牌（data.hands）
   },
 
-  /** 玩家加入大厅 */
+  /** 玩家加入大厅（落座事件，step 5+ 会用上） */
   onPlayerJoined(data) {
     this._updateLobbyCount(data.totalCount);
     this._addLobbyPlayer(data.username);
+  },
+
+  /** 服务端大厅状态广播：整列表重建 */
+  updateLobby(data) {
+    const players = (data && data.players) || [];
+    const count   = (data && typeof data.count === 'number') ? data.count : players.length;
+    const list = document.getElementById('lobby-players');
+    list.innerHTML = '';
+    players.forEach(p => this._addLobbyPlayer(p.username));
+    this._updateLobbyCount(count);
   },
 
   /** 更新筹码 */
