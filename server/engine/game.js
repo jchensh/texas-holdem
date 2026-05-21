@@ -422,6 +422,7 @@ class Game {
       bigBlind:       this.bigBlind,
       dealerSeat:     this.dealerSeat,
       heroHandType,  // 塞给前端渲染！
+      results:        this.phase === 'ended' ? this.results : null,
       players: this.players.map(p => ({
         seatId:    p.seatId,
         username:  p.username,

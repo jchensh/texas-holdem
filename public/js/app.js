@@ -310,6 +310,10 @@ const App = {
   /** 主状态更新入口，接收完整 GameState 快照 */
   updateGameState(state) {
     this.state.game = state;
+    
+    // 调试辅助：核心状态变化输出
+    console.log(`%c[GameState] 收到状态快照 | 手牌ID: ${state.handId} | 阶段: ${state.phase} | 底池: ${state.pot} | 公共牌: ${state.communityCards?.map(c => c.rank+c.suit).join(' ') || '无'}`, 'color: #00bcd4; font-weight: bold;');
+
     // 游戏开始：彻底收掉蒙层和角标
     document.getElementById('lobby-overlay').style.display = 'none';
     document.getElementById('waiting-indicator').hidden = true;
@@ -340,7 +344,13 @@ const App = {
 
     // 局终结算特效触发
     if (state.phase === 'ended' && state.results) {
-      // 哨兵防重：同一手牌 ID 仅执行一次筹码飞射动画
+      // 1. 哨兵防重：同一手牌 ID 仅执行一次屏幕正中央大弹窗
+      if (state.handId && state.handId !== this._lastSettlementHandId) {
+        this._lastSettlementHandId = state.handId;
+        this._showSettlementOverlay(state.results);
+      }
+
+      // 2. 哨兵防重：同一手牌 ID 仅执行一次筹码飞射动画
       if (state.handId && state.handId !== this._lastAnimateHandId) {
         this._lastAnimateHandId = state.handId;
         state.results.summary.forEach(s => {
@@ -350,7 +360,7 @@ const App = {
         });
       }
 
-      // 哨兵防重：同一手牌 ID 仅执行一次飘字提示
+      // 3. 哨兵防重：同一手牌 ID 仅执行一次飘字提示
       if (state.handId && state.handId !== this._lastFloatedHandId) {
         this._lastFloatedHandId = state.handId;
         state.results.summary.forEach(s => {
@@ -377,6 +387,7 @@ const App = {
 
   /** 新手牌开始，重置桌面 */
   startNewHand() {
+    console.log('%c[Game] ====================== 新局开始 ======================', 'color: #e040fb; font-weight: bold; font-size: 14px;');
     // 清公共牌
     for (let i = 0; i < 5; i++) {
       const el = document.getElementById(`comm-${i}`);
@@ -504,6 +515,7 @@ const App = {
 
   /** 玩家行动文字提示 */
   onPlayerAction(data) {
+    console.log(`%c[Action] 席位 ${data.seatId} 动作: ${data.action} | 金额: ${data.amount}`, 'color: #ff9800; font-weight: bold;');
     const seat = document.getElementById(`seat-${data.seatId}`);
     if (!seat) return;
     const labels = { fold: '弃牌', check: '过牌', call: `跟注 ${data.amount}`, raise: `加注 ${data.amount}`, allin: '全押' };
@@ -514,6 +526,7 @@ const App = {
 
   /** 轮到本玩家行动 */
   showActionPanel(data) {
+    console.log(`%c[Turn] 轮到本家行动！跟注额: ${data.callAmount} | 允许加注范围: [${data.minRaise}, ${data.maxRaise}] | 剩余思考时间: ${data.timeLimit}s`, 'color: #4caf50; font-weight: bold;');
     const panel = document.getElementById('action-panel');
     panel.hidden = false;
 
@@ -545,6 +558,10 @@ const App = {
 
   /** 手牌结算 */
   showHandResult(data) {
+    console.log(`%c[Settle] 局终结算广播 | 赢家: ${data.winner || '无'} | 总奖池: ${data.pot}`, 'color: #ff5722; font-weight: bold; font-size: 13px;');
+    if (data.hands) {
+      console.log('[Settle] 所有摊牌选手手牌详情:', data.hands);
+    }
     const msg = data.winner
       ? `${data.winner} 赢得 ${data.pot} 筹码！`
       : '平局';
@@ -679,6 +696,7 @@ const App = {
 
   // ── 视觉特效实现 ──────────────────────────────────
 
+  _lastSettlementHandId: null,
   _lastAnimateHandId: null,
   _lastFloatedHandId: null,
 
@@ -781,6 +799,91 @@ const App = {
     setTimeout(() => {
       floatEl.remove();
     }, 1800);
+  },
+
+  /** 屏幕正中央局终结算大弹窗（包含倒计时与自动淡出） */
+  _showSettlementOverlay(results) {
+    console.log('%c[SettleModal] 弹出屏幕正中结算大弹窗', 'color: #00e676; font-weight: bold;', results);
+
+    const overlay = document.getElementById('settlement-overlay');
+    const box = document.getElementById('settlement-box');
+    const titleEl = document.getElementById('settlement-title');
+    const profitEl = document.getElementById('settlement-player-profit');
+    const detailEl = document.getElementById('settlement-detail');
+    const subDetailsEl = document.getElementById('settlement-sub-details');
+    const progressEl = document.getElementById('settlement-countdown-progress');
+
+    if (!overlay || !box || !titleEl || !profitEl || !detailEl || !subDetailsEl || !progressEl) return;
+
+    // 清理先前的状态类
+    box.className = 'settlement-box';
+
+    // 1. 找到本地玩家的盈亏数据 (通过 username 保证 100% 确定性)
+    const myUsername = this.state.user?.username;
+    const myResult = results.summary.find(s => s.username === myUsername);
+
+    let profitText = '';
+    if (myResult) {
+      const p = myResult.profit;
+      const fmtProfit = p >= 0 ? `+${p}` : `${p}`;
+      
+      if (p > 0) {
+        box.classList.add('win');
+        titleEl.textContent = '🎉 恭喜获胜！';
+        profitEl.textContent = `你赢得了 ${p} 筹码`;
+        document.getElementById('settlement-icon').textContent = '🏆';
+      } else if (p < 0) {
+        box.classList.add('loss');
+        titleEl.textContent = '💔 遗憾落败';
+        profitEl.textContent = `你输掉了 ${Math.abs(p)} 筹码`;
+        document.getElementById('settlement-icon').textContent = '💸';
+      } else {
+        box.classList.add('push');
+        titleEl.textContent = '🤝 平局结算';
+        profitEl.textContent = `筹码未发生变化`;
+        document.getElementById('settlement-icon').textContent = '✨';
+      }
+    } else {
+      // 本人没有入座（旁观者）
+      box.classList.add('push');
+      titleEl.textContent = '🃏 牌局已结束';
+      profitEl.textContent = `本局共结算 ${results.summary.length} 名玩家`;
+      document.getElementById('settlement-icon').textContent = '♠';
+    }
+
+    // 2. 找到本局赢家的手牌信息
+    const winners = results.summary.filter(s => s.won > 0);
+    const winDetails = winners.map(w => `${w.username} (${w.categoryName || '未知牌型'})`).join(', ');
+    detailEl.textContent = winDetails ? `赢家牌型: ${winDetails}` : '本局无赢家（全员弃牌或平分）';
+
+    // 3. 填充所有选手的滚动盈亏列表
+    subDetailsEl.innerHTML = results.summary.map(s => {
+      const fmtP = s.profit >= 0 ? `+${s.profit}` : `${s.profit}`;
+      const cls = s.profit > 0 ? 'win' : s.profit < 0 ? 'loss' : 'push';
+      return `
+        <div class="settlement-row">
+          <span class="settlement-row-name">${s.username}</span>
+          <span class="settlement-row-profit ${cls}">${fmtP} 筹码</span>
+        </div>
+      `;
+    }).join('');
+
+    // 4. 重置并激活倒计时进度条 (5.5 秒后自动关闭，契合服务器的 6 秒结算间隔)
+    progressEl.style.transition = 'none';
+    progressEl.style.width = '100%';
+    // 强制触发 DOM 重绘以使过渡动效生效
+    progressEl.offsetHeight; 
+    progressEl.style.transition = 'width 5.3s linear';
+    progressEl.style.width = '0%';
+
+    // 5. 显现弹窗
+    overlay.classList.add('active');
+
+    // 6. 设定定时器自动撤销弹窗
+    if (this._settlementTimer) clearTimeout(this._settlementTimer);
+    this._settlementTimer = setTimeout(() => {
+      overlay.classList.remove('active');
+    }, 5500);
   },
 };
 
