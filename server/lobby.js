@@ -1,40 +1,19 @@
 /**
  * 大厅模块（V1 单桌）
  *
- * 维护当前已连接的玩家列表，并向所有 socket 广播 lobby_state。
- *
- * 推送事件：
- *   lobby_state  { players: [{ username, chips }], count: number }
- *
- * 设计要点：
- * - 一个用户开多个标签页会有多个 socket；按 userId 去重，只算一人
- * - 不在这里处理"落座/弃牌/下注"——那是 step 5/6 游戏引擎的事
- * - 不在这里检查最大人数——V1 单桌容量 6，由后续逻辑约束
+ * 在 Step 6 中，此模块作为 Socket.IO 的网关层：
+ * 1. 在 `io.use()` 握手阶段，对 Socket 进行鉴权，将 `socket.data.user` 存好。
+ * 2. 在连接成功后，将 Socket 连接托管给全局的 `table` 单例。
  */
 const db = require('./db');
+const table = require('./table');
 
 const findById = db.prepare('SELECT id, username, chips FROM users WHERE id = ?');
 
-/** socket.id → { userId, username, chips } */
-const sockets = new Map();
-
-function buildLobbyState() {
-  // 按 userId 去重
-  const seen = new Map();
-  for (const info of sockets.values()) {
-    if (!seen.has(info.userId)) {
-      seen.set(info.userId, { username: info.username, chips: info.chips });
-    }
-  }
-  const players = Array.from(seen.values());
-  return { players, count: players.length };
-}
-
-/**
- * 把大厅逻辑挂到 Socket.IO 实例上。
- * 调用前必须先用 `io.engine.use(sessionMiddleware)` 让握手请求带上 session。
- */
 function attach(io) {
+  // 注入 io 实例给 table
+  table.attach(io);
+
   // 握手鉴权：拒绝未登录的连接
   io.use((socket, next) => {
     const session = socket.request.session;
@@ -51,17 +30,38 @@ function attach(io) {
 
   io.on('connection', (socket) => {
     const u = socket.data.user;
-    sockets.set(socket.id, { userId: u.id, username: u.username, chips: u.chips });
-    console.log(`[Lobby] + ${u.username} (${socket.id}) — 当前 ${sockets.size} 个 socket`);
 
-    io.emit('lobby_state', buildLobbyState());
+    // 托管给 table 分配座位/绑定
+    table.sitPlayer(u, socket);
 
+    // 监听玩家的具体 Action 操作
+    socket.on('action', (action) => {
+      table.handlePlayerAction(socket, action);
+    });
+
+    // 监听断开连接
     socket.on('disconnect', () => {
-      sockets.delete(socket.id);
-      console.log(`[Lobby] - ${u.username} (${socket.id}) — 当前 ${sockets.size} 个 socket`);
-      io.emit('lobby_state', buildLobbyState());
+      table.handleDisconnect(socket);
     });
   });
 }
 
-module.exports = { attach, buildLobbyState };
+// 导出 attach 及代理旧接口，确保向下兼容
+module.exports = {
+  attach,
+  buildLobbyState: () => {
+    const seen = new Map();
+    table.seats.forEach(seat => {
+      if (seat && !seen.has(seat.userId)) {
+        seen.set(seat.userId, { username: seat.username, chips: seat.chips });
+      }
+    });
+    table.spectators.forEach(spec => {
+      if (!seen.has(spec.userId)) {
+        seen.set(spec.userId, { username: spec.username, chips: spec.chips });
+      }
+    });
+    const players = Array.from(seen.values());
+    return { players, count: players.length };
+  }
+};

@@ -48,4 +48,29 @@ db.exec(`
     ON hand_history(user_id, ended_at DESC);
 `);
 
+// ── Step 6: 筹码更新与手牌历史持久化事务 ───────────────────
+const updateChipsStmt = db.prepare('UPDATE users SET chips = ?, lifetime_profit = lifetime_profit + ? WHERE id = ?');
+const insertHistoryStmt = db.prepare(`
+  INSERT INTO hand_history (user_id, hand_id, ended_at, result, profit, chips_after, hole_cards, community_cards, action_summary)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+db.saveHandResults = db.transaction((handId, endedAt, players, actionLog, communityCards) => {
+  for (const p of players) {
+    updateChipsStmt.run(p.chipsAfter, p.profit, p.id);
+    insertHistoryStmt.run(
+      p.id,
+      handId,
+      endedAt,
+      p.result, // 'win' | 'loss' | 'push'
+      p.profit,
+      p.chipsAfter,
+      JSON.stringify(p.holeCards),
+      JSON.stringify(communityCards),
+      JSON.stringify(actionLog)
+    );
+  }
+});
+
 module.exports = db;
+

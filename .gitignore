@@ -19,7 +19,8 @@ logs/
 # 编辑器/工具
 .vscode/
 .idea/
-.claude/settings.local.json
+.claude/
+.antigravitycli/
 
 # 系统
 .DS_Store

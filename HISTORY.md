@@ -206,6 +206,32 @@
 
 ---
 
+## Step 6 — 引擎接入在线房间与持久化结算（2026-05-22，commit `021200d`）
+
+**目标**：将 Texas Hold'em 游戏引擎集成到 Socket.IO 房间中，实现客户端相对座位转换、倒计时动作管理、结算广播以及 SQLite 数据库持久化存储。
+
+**产出**：
+- `server/db.js` — 增加 `saveHandResults` SQLite 数据库原子事务函数，在单次写入中批量更新玩家的 chips、累加 lifetime_profit，并在 hand_history 表中插入手牌详情。
+- `server/table.js` (新) — 核心房间/牌桌状态机单例：
+  - 管理 6 个物理座位以及 Map 形式的 Spectators (旁观者)。
+  - 实现新连接自动坐下 `sitPlayer` (限制在线人数上限最多 10 人) 与彻底离线清理物理座位托管机制。
+  - 实现座位旋转翻译 `translateToRelative`，将绝对座位转换成以 Viewer 为 0 席位的相对座位数据推送。
+  - 维护 30 秒超时自动 Check/Fold 的动作托管定时器。
+  - 结算时执行结算更新、筹码自动充值，并延时 6 秒自动开启下一手牌。
+- `server/lobby.js` — 彻底对接 Table 单例，简化大厅网关，将连接、动作、断开事件全权托管。
+- `scripts/test-step6-e2e.js` (新) — Step 6 端到端自动化集成测试脚本，模拟并发注册、登录、落座、下注交互、摊牌结算和数据库断言。
+
+**关键决策**：
+- **人数限制**：在线玩家最多为 10 人。前 6 人入座，多余的 4 人作为旁观者。手牌结束时若有入座玩家离线，旁观者自动递补入座。
+- **物理席位去重**：使用唯一 `userId` 标记物理席位，同一用户多 Tab / 断开重连会自动合并至同一个绝对座位号，避免重复分配。
+- **结算事务安全**：为防结算写盘中途宕机造成数据不一致，全部筹码更新和手牌历史写入使用 `db.transaction` 包裹为原子操作。
+
+**测试验证**：
+- 运行 `npm test` 确认底层扑克引擎的 48 个单元测试全部通过。
+- 运行 `node scripts/test-step6-e2e.js` 模拟 Alice, Bob, Charlie 的 3 人游戏流、结算广播及数据库写入，全部断言 100% 通过。
+
+---
+
 ## 整体框架
 
 ```
@@ -236,9 +262,9 @@ index.html
 | 1 | 前端三视图骨架 + 依赖清单 | ✅ commit `61fc49a` |
 | 2 | 后端认证 + SQLite schema | ✅ commit `cba9ab4` |
 | 3 | 前端接入认证 API | ✅ commit `424119f`（+ UI 微调 `e7dc2d0`） |
-| 4 | Socket.IO 握手 + 大厅（玩家列表广播） | ✅ 2026-05-20（待提交） |
-| 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ✅ 2026-05-20（待提交） |
-| 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ⏳ |
+| 4 | Socket.IO 握手 + 大厅（玩家列表广播） | ✅ commit `6a3dbfe` |
+| 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ✅ commit `2f27c7a` |
+| 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ✅ commit `021200d` |
 | 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ⏳ |
 | 8 | Railway 部署（持久卷、健康检查、`SESSION_SECRET`） | ⏳ |
 
@@ -250,3 +276,4 @@ index.html
 2. 再读 `CLAUDE.md` → 知道项目规范和前端结构约定
 3. `git log --oneline` 看最新进度
 4. 如果"上一步在做什么"和 HISTORY.md 不一致，**以代码和 git log 为准**，并更新本文件
+
