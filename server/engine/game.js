@@ -302,10 +302,15 @@ class Game {
   }
 
   _finalize(reason, hands /* Map<seatId, evalResult> */, payouts /* Map<seatId, won> */, pots) {
-    // 加上奖金
+    // 加上奖金并清空临时下注
     for (const [seatId, won] of payouts.entries()) {
       this._playerBySeat(seatId).chips += won;
     }
+    for (const p of this.players) {
+      p.currentBet = 0;
+    }
+    this.currentBet = 0;
+
     // 生成 summary
     const summary = this.players.map(p => {
       const won  = payouts.get(p.seatId) || 0;

@@ -315,10 +315,23 @@ const App = {
 
     document.getElementById('pot-amount').textContent = state.pot ?? 0;
 
-    const phaseLabel = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', showdown: '摊牌' };
-    document.getElementById('game-status').textContent = phaseLabel[state.phase] || '';
+    const phaseLabel = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', showdown: '摊牌', ended: '比牌结算' };
+    let statusText = phaseLabel[state.phase] || '';
+    if (state.phase === 'ended' && state.results) {
+      const winners = state.results.summary.filter(s => s.won > 0).map(s => s.username);
+      statusText = winners.length > 0 ? `${winners.join(', ')} 赢得 ${state.pot} 筹码！` : '平局';
+    }
+    document.getElementById('game-status').textContent = statusText;
 
     if (state.communityCards) this.renderCommunityCards(state.communityCards);
+
+    // 清理离桌或不在本局中的物理对手座位
+    const activeSeatIds = new Set((state.players || []).map(p => p.seatId));
+    for (let i = 1; i <= 5; i++) {
+      if (!activeSeatIds.has(i)) {
+        this.clearPlayerSeat(i);
+      }
+    }
 
     (state.players || []).forEach(p => {
       if (p.seatId === 0) this._updateHero(p);
@@ -340,6 +353,8 @@ const App = {
       el.innerHTML = '';
       el.className = 'card card-placeholder';
     });
+    // 重置Hero手牌容器的透明度
+    document.getElementById('hole-cards').style.opacity = '1';
     // 清下注、状态
     document.querySelectorAll('.seat-bet-badge').forEach(el => el.hidden = true);
     document.querySelectorAll('.seat-action-label').forEach(el => el.textContent = '');
@@ -398,9 +413,34 @@ const App = {
       betBadge.hidden = true;
     }
 
-    // 隐藏弃牌者手牌
+    // 动态渲染对手手牌
     const seatCards = seat.querySelector('.seat-cards');
-    seatCards.style.opacity = player.status === 'folded' ? '0.2' : '1';
+    if (player.status === 'waiting') {
+      seatCards.innerHTML = '';
+      seatCards.style.opacity = '0.2';
+    } else if (player.status === 'folded') {
+      seatCards.innerHTML = `
+        <div class="card card-back sm"></div>
+        <div class="card card-back sm"></div>
+      `;
+      seatCards.style.opacity = '0.2';
+    } else {
+      seatCards.style.opacity = '1';
+      if (player.holeCards && player.holeCards.length === 2) {
+        // Showdown 摊牌，翻开明牌
+        seatCards.innerHTML = player.holeCards.map(c => `
+          <div class="card sm ${this._isRed(c.suit) ? 'red' : ''}">
+            ${this._cardInnerHTML(c)}
+          </div>
+        `).join('');
+      } else {
+        // 游戏中进行状态，显示牌背
+        seatCards.innerHTML = `
+          <div class="card card-back sm"></div>
+          <div class="card card-back sm"></div>
+        `;
+      }
+    }
 
     this._applySeatStatus(seat, player.status);
   },
@@ -415,6 +455,7 @@ const App = {
     seat.querySelector('.seat-bet-badge').hidden = true;
     seat.querySelector('.dealer-btn').hidden     = true;
     seat.querySelector('.seat-cards').style.opacity = '1';
+    seat.querySelector('.seat-cards').innerHTML  = ''; // 空座时不显示手牌占位背部
     seat.classList.remove('active-turn', 'folded', 'all-in');
   },
 
@@ -516,6 +557,13 @@ const App = {
         el.className = 'card deal hole-card';
         if (this._isRed(card.suit)) el.classList.add('red');
       });
+    }
+
+    const holeCardsContainer = document.getElementById('hole-cards');
+    if (player.status === 'folded') {
+      holeCardsContainer.style.opacity = '0.2';
+    } else {
+      holeCardsContainer.style.opacity = '1';
     }
 
     const heroBet = document.getElementById('hero-bet-badge');
