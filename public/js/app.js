@@ -307,6 +307,7 @@ const App = {
   // ── 游戏状态更新（由 SocketClient 调用） ──────────
 
   /** 主状态更新入口，接收完整 GameState 快照 */
+  /** 主状态更新入口，接收完整 GameState 快照 */
   updateGameState(state) {
     this.state.game = state;
     // 游戏开始：彻底收掉蒙层和角标
@@ -324,6 +325,41 @@ const App = {
     document.getElementById('game-status').textContent = statusText;
 
     if (state.communityCards) this.renderCommunityCards(state.communityCards);
+
+    // 最强牌型实时提示
+    const badge = document.getElementById('hand-type-badge');
+    const badgeName = document.getElementById('hand-type-name');
+    if (badge && badgeName) {
+      if (state.heroHandType && state.phase !== 'ended') {
+        badgeName.textContent = state.heroHandType;
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    }
+
+    // 局终结算特效触发
+    if (state.phase === 'ended' && state.results) {
+      // 哨兵防重：同一手牌 ID 仅执行一次筹码飞射动画
+      if (state.handId && state.handId !== this._lastAnimateHandId) {
+        this._lastAnimateHandId = state.handId;
+        state.results.summary.forEach(s => {
+          if (s.won > 0) {
+            this._animateChips(s.seatId);
+          }
+        });
+      }
+
+      // 哨兵防重：同一手牌 ID 仅执行一次飘字提示
+      if (state.handId && state.handId !== this._lastFloatedHandId) {
+        this._lastFloatedHandId = state.handId;
+        state.results.summary.forEach(s => {
+          if (s.won > 0 || s.paid > 0) {
+            this._showFloatingProfit(s.seatId, s.profit, s.result);
+          }
+        });
+      }
+    }
 
     // 清理离桌或不在本局中的物理对手座位
     const activeSeatIds = new Set((state.players || []).map(p => p.seatId));
@@ -355,6 +391,13 @@ const App = {
     });
     // 重置Hero手牌容器的透明度
     document.getElementById('hole-cards').style.opacity = '1';
+
+    // 隐藏牌力提示标并重置文本
+    const badge = document.getElementById('hand-type-badge');
+    const badgeName = document.getElementById('hand-type-name');
+    if (badge) badge.hidden = true;
+    if (badgeName) badgeName.textContent = '高牌';
+
     // 清下注、状态
     document.querySelectorAll('.seat-bet-badge').forEach(el => el.hidden = true);
     document.querySelectorAll('.seat-action-label').forEach(el => el.textContent = '');
@@ -632,6 +675,112 @@ const App = {
       clearInterval(this._timerInterval);
       this._timerInterval = null;
     }
+  },
+
+  // ── 视觉特效实现 ──────────────────────────────────
+
+  _lastAnimateHandId: null,
+  _lastFloatedHandId: null,
+
+  /** 金色筹码飞射汇聚动画 */
+  _animateChips(targetSeatId) {
+    const tableEl = document.querySelector('.table-scene');
+    const potEl = document.querySelector('.pot-row');
+    const targetSeatEl = document.getElementById(`seat-${targetSeatId}`);
+    if (!tableEl || !potEl || !targetSeatEl) return;
+
+    const tableRect = tableEl.getBoundingClientRect();
+    const potRect = potEl.getBoundingClientRect();
+    const targetAvatar = targetSeatEl.querySelector('.seat-avatar');
+    if (!targetAvatar) return;
+    const targetRect = targetAvatar.getBoundingClientRect();
+
+    // 起点坐标 (奖池中心，相对于 table-scene)
+    const startX = potRect.left - tableRect.left + potRect.width / 2;
+    const startY = potRect.top - tableRect.top + potRect.height / 2;
+
+    // 终点坐标 (目标头像中心，相对于 table-scene)
+    const endX = targetRect.left - tableRect.left + targetRect.width / 2;
+    const endY = targetRect.top - tableRect.top + targetRect.height / 2;
+
+    const numChips = 10;
+    for (let i = 0; i < numChips; i++) {
+      const chip = document.createElement('div');
+      chip.className = 'chip-particle';
+      // 粒子居中定位偏移
+      chip.style.left = `${startX - 7}px`;
+      chip.style.top = `${startY - 7}px`;
+      chip.style.transform = 'translate(0, 0) scale(1)';
+      tableEl.appendChild(chip);
+
+      // 第一阶段：向随机方向爆射炸开
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 25 + Math.random() * 30; // 25px 至 55px 爆炸扩散半径
+      const scatterX = Math.cos(angle) * radius;
+      const scatterY = Math.sin(angle) * radius;
+
+      // 错落有致的流体动画延迟
+      const delay = i * 40;
+
+      setTimeout(() => {
+        // 第一段：炸开
+        chip.style.transform = `translate(${scatterX}px, ${scatterY}px) scale(1.1)`;
+
+        // 第二阶段：在 300ms 后飞向目标席位头像并缩小、淡出
+        setTimeout(() => {
+          const finalX = endX - startX;
+          const finalY = endY - startY;
+          chip.style.transform = `translate(${finalX}px, ${finalY}px) scale(0.4)`;
+          chip.style.opacity = '0';
+        }, 300);
+
+      }, delay);
+
+      // 动画完成后从 DOM 清理粒子
+      setTimeout(() => {
+        chip.remove();
+      }, delay + 1200);
+    }
+  },
+
+  /** 输赢盈亏飘字特效 */
+  _showFloatingProfit(seatId, profit, result) {
+    const tableEl = document.querySelector('.table-scene');
+    const seatEl = document.getElementById(`seat-${seatId}`);
+    if (!tableEl || !seatEl) return;
+
+    const tableRect = tableEl.getBoundingClientRect();
+    const avatarEl = seatEl.querySelector('.seat-avatar');
+    if (!avatarEl) return;
+    const avatarRect = avatarEl.getBoundingClientRect();
+
+    // 飘字居中及高度偏置计算
+    const x = avatarRect.left - tableRect.left + avatarRect.width / 2;
+    const y = avatarRect.top - tableRect.top - 10; // 略微浮在头像正上方
+
+    const floatEl = document.createElement('div');
+    floatEl.className = `floating-profit ${result}`;
+    floatEl.style.left = `${x}px`;
+    floatEl.style.top = `${y}px`;
+
+    let text = '';
+    if (result === 'win') {
+      text = `🎉 赢 +${profit}`;
+    } else if (result === 'loss') {
+      // 格式化输出为 输 -XX 样式
+      const formattedProfit = profit < 0 ? profit : `-${profit}`;
+      text = `💸 输 ${formattedProfit}`;
+    } else {
+      text = `🤝 平局`;
+    }
+
+    floatEl.textContent = text;
+    tableEl.appendChild(floatEl);
+
+    // 与 CSS floatUpAndFade 1.8s 保持完全一致并销毁
+    setTimeout(() => {
+      floatEl.remove();
+    }, 1800);
   },
 };
 

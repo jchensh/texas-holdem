@@ -386,6 +386,30 @@ class Game {
   getPublicState(viewerSeatId = null) {
     const pot = this.players.reduce((s, p) => s + p.totalBet, 0);
     const isShowdown = this.phase === 'ended' && this.results && this.results.reason === 'showdown';
+
+    // 实时计算该 viewer 当前的最佳组合牌型名称
+    let heroHandType = null;
+    if (viewerSeatId !== null && viewerSeatId !== undefined) {
+      const viewerPlayer = this._playerBySeat(viewerSeatId);
+      if (viewerPlayer && viewerPlayer.status !== 'folded' && viewerPlayer.holeCards?.length === 2 && this.communityCards.length >= 3) {
+        try {
+          const combined = [...viewerPlayer.holeCards, ...this.communityCards];
+          let bestEval = null;
+          const { evaluate5, combinations, compareScore, CATEGORY_NAME } = require('./hand-rank');
+          for (const idxs of combinations(combined.length, 5)) {
+            const sub = idxs.map(i => combined[i]);
+            const r = evaluate5(sub);
+            if (!bestEval || compareScore([r.category, ...r.tiebreakers], [bestEval.category, ...bestEval.tiebreakers]) > 0) {
+              bestEval = r;
+            }
+          }
+          heroHandType = CATEGORY_NAME[bestEval.category];
+        } catch (e) {
+          console.error('[Game] 实时牌型分析失败:', e);
+        }
+      }
+    }
+
     return {
       handId:         this.handId,
       phase:          this.phase,
@@ -397,6 +421,7 @@ class Game {
       smallBlind:     this.smallBlind,
       bigBlind:       this.bigBlind,
       dealerSeat:     this.dealerSeat,
+      heroHandType,  // 塞给前端渲染！
       players: this.players.map(p => ({
         seatId:    p.seatId,
         username:  p.username,

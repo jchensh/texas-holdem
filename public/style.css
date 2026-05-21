@@ -768,3 +768,123 @@ input  { font-family: inherit; outline: none; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ══════════════════════════════════════════
+   视觉优化：牌力提示、飘字与筹码飞入
+   ══════════════════════════════════════════ */
+
+/* 牌力实时提示角标 - 磨砂玻璃感 + 霓虹发光样式 */
+.hand-type-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 100px; /* 位于手牌上方 */
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(22, 27, 34, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 6px 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 8px rgba(63, 185, 80, 0.2);
+  z-index: 25;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  animation: badgeFadeIn 0.35s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes badgeFadeIn {
+  from { opacity: 0; transform: translate(-50%, 10px) scale(0.9); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.hand-type-badge .badge-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--green);
+  animation: dotPulse 1.8s ease-out infinite;
+}
+
+@keyframes dotPulse {
+  0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+}
+
+.hand-type-badge .badge-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.hand-type-badge .badge-text strong {
+  color: #7dde9c;
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(125, 222, 156, 0.3);
+}
+
+/* 局终结算大字飘逸浮现样式 */
+.floating-profit {
+  position: absolute;
+  font-size: 26px;
+  font-weight: 900;
+  text-align: center;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+  animation: floatUpAndFade 1.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.floating-profit.win {
+  color: #00e676; /* 霓虹绿 */
+  text-shadow: 0 0 10px rgba(0, 230, 118, 0.6), 0 0 20px rgba(0, 230, 118, 0.3);
+}
+
+.floating-profit.loss {
+  color: #ff1744; /* 炫目红 */
+  text-shadow: 0 0 10px rgba(255, 23, 68, 0.6), 0 0 20px rgba(255, 23, 68, 0.3);
+}
+
+.floating-profit.push {
+  color: #b0bec5; /* 低调灰 */
+  text-shadow: 0 0 8px rgba(176, 190, 197, 0.5);
+}
+
+@keyframes floatUpAndFade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -30px) scale(1.1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -90px) scale(0.85);
+  }
+}
+
+/* 金色流光筹码粒子样式 */
+.chip-particle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe082 0%, #f57c00 70%, #e65100 100%);
+  border: 1.5px solid #ffe082;
+  box-shadow: 0 0 6px rgba(255, 224, 130, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  pointer-events: none;
+  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease;
+}
+
