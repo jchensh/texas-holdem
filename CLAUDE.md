@@ -14,7 +14,7 @@ Texas Hold'em 网页扑克游戏，供朋友间在线联机娱乐使用。
 - **数据库**：SQLite（via better-sqlite3）
 - **前端**：原生 HTML/CSS/JS（无框架，无构建步骤）
 - **认证**：bcrypt + cookie session
-- **部署**：Railway
+- **部署**：谷歌云香港 VM 实例 (GCP Compute Engine) + PM2 + Nginx 反向代理 (支持 WebSocket)
 
 ## V1 功能范围
 

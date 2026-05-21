@@ -266,7 +266,7 @@ index.html
 | 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ✅ commit `2f27c7a` |
 | 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ✅ commit `021200d` |
 | 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ⏳ |
-| 8 | Railway 部署（持久卷、健康检查、`SESSION_SECRET`） | ⏳ |
+| 8 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
 
