@@ -13,6 +13,7 @@ const express = require('express');
 const bcrypt  = require('bcrypt');
 const db      = require('./db');
 const config  = require('./config');
+const { evaluate7 } = require('./engine/hand-rank');
 
 const BCRYPT_ROUNDS = 10;
 // 用户名：3-16 位，字母/数字/下划线/中文
@@ -29,6 +30,13 @@ const queries = {
   insert: db.prepare(`
     INSERT INTO users (username, password_hash, chips, created_at)
     VALUES (?, ?, ?, ?)
+  `),
+  getHistory: db.prepare(`
+    SELECT hand_id, ended_at, result, profit, chips_after, hole_cards, community_cards, action_summary, seat_id
+    FROM hand_history
+    WHERE user_id = ?
+    ORDER BY ended_at DESC
+    LIMIT 50
   `),
 };
 
@@ -120,5 +128,68 @@ function requireAuth(req, res, next) {
   req.user = user;
   next();
 }
+
+router.get('/history', requireAuth, (req, res) => {
+  try {
+    const rows = queries.getHistory.all(req.user.id);
+    const history = rows.map(row => {
+      const holeCards = JSON.parse(row.hole_cards || '[]');
+      const communityCards = JSON.parse(row.community_cards || '[]');
+      const actionSummary = JSON.parse(row.action_summary || '[]');
+      const seatId = row.seat_id;
+
+      // 1. 动态推算摊牌阶段的牌力类型
+      let handStrength = '';
+      if (row.result !== 'folded' && communityCards.length === 5 && holeCards.length === 2) {
+        try {
+          const evalResult = evaluate7([...holeCards, ...communityCards]);
+          handStrength = evalResult.categoryName;
+        } catch (e) {
+          // 忽略计算错误
+        }
+      }
+
+      // 2. 根据行动日志生成精美中文描述
+      let actionDesc = '';
+      if (row.result === 'win') {
+        if (handStrength) {
+          actionDesc = `进入摊牌胜出，牌型【${handStrength}】`;
+        } else {
+          actionDesc = '对手全弃牌，赢得底池';
+        }
+      } else if (row.result === 'loss') {
+        const myFold = actionSummary.find(act => act.seatId === seatId && act.type === 'fold');
+        if (myFold) {
+          const phaseNames = { preflop: '翻牌前', flop: '翻牌圈', turn: '转牌圈', river: '河牌圈' };
+          actionDesc = `在 ${phaseNames[myFold.phase] || '游戏中'} 弃牌`;
+        } else {
+          actionDesc = `进入摊牌落败` + (handStrength ? `，牌型【${handStrength}】` : '');
+        }
+      } else {
+        actionDesc = '平局，分得底池' + (handStrength ? `【${handStrength}】` : '');
+      }
+
+      // 3. 构造本地日期字符串，格式 YYYY-MM-DD HH:mm
+      const date = new Date(row.ended_at);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+      return {
+        id: row.hand_id,
+        date: dateStr,
+        result: row.result,
+        profit: row.profit,
+        finalChips: row.chips_after,
+        action: actionDesc,
+        hole_cards: holeCards,
+        community_cards: communityCards
+      };
+    });
+
+    res.json({ history });
+  } catch (err) {
+    console.error('[auth] getHistory 失败:', err);
+    res.status(500).json({ message: '获取手牌历史失败，请稍后重试' });
+  }
+});
 
 module.exports = { router, requireAuth };

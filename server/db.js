@@ -41,6 +41,7 @@ db.exec(`
     hole_cards      TEXT,                      -- JSON 字符串
     community_cards TEXT,                      -- JSON 字符串
     action_summary  TEXT,
+    seat_id         INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
@@ -48,11 +49,19 @@ db.exec(`
     ON hand_history(user_id, ended_at DESC);
 `);
 
+// 热升级：为存量数据库升级手牌历史表，添加 seat_id 字段
+try {
+  db.exec('ALTER TABLE hand_history ADD COLUMN seat_id INTEGER DEFAULT 0');
+  console.log('[db] 成功升级 hand_history 表，添加 seat_id 字段');
+} catch (err) {
+  // 忽略列已存在的错误
+}
+
 // ── Step 6: 筹码更新与手牌历史持久化事务 ───────────────────
 const updateChipsStmt = db.prepare('UPDATE users SET chips = ?, lifetime_profit = lifetime_profit + ? WHERE id = ?');
 const insertHistoryStmt = db.prepare(`
-  INSERT INTO hand_history (user_id, hand_id, ended_at, result, profit, chips_after, hole_cards, community_cards, action_summary)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO hand_history (user_id, hand_id, ended_at, result, profit, chips_after, hole_cards, community_cards, action_summary, seat_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 db.saveHandResults = db.transaction((handId, endedAt, players, actionLog, communityCards) => {
@@ -67,10 +76,12 @@ db.saveHandResults = db.transaction((handId, endedAt, players, actionLog, commun
       p.chipsAfter,
       JSON.stringify(p.holeCards),
       JSON.stringify(communityCards),
-      JSON.stringify(actionLog)
+      JSON.stringify(actionLog),
+      p.seatId
     );
   }
 });
 
 module.exports = db;
+
 

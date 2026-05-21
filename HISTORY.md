@@ -255,6 +255,29 @@ index.html
 
 ---
 
+## Step 7 — 真实手牌历史与微缩卡牌平铺（2026-05-22，commit `3a39b86`）
+
+**目标**：新增身份鉴权的 `GET /api/history` Express API，拉取当前玩家 SQLite 历史记录；自适应升级 SQLite 数据库保存物理座位号 `seat_id` 以精准行动分析；前端对接真实数据并以 premium 微缩卡牌渲染底牌与公共牌。
+
+**产出**：
+- `server/db.js` — 增加物理座位号 `seat_id INTEGER DEFAULT 0`，加入 `ALTER TABLE` 零停机热升级机制；更新插入与持久化事务参数以落库 `seatId`。
+- `server/auth.js` — 新增带 `requireAuth` 中间件的 `GET /api/history` 路由。引入 `evaluate7` 进行牌力动态推导，根据结算结果与个人行动记录（弃牌、摊牌等）智能生成极富质感的中文描述摘要（如“对手全弃牌，赢得底池”、“在 翻牌圈 弃牌”、“进入摊牌胜出，牌型【两对】”）。
+- `public/style.css` — 追加手牌历史中 inline 渲染微缩卡牌的 `.history-cards`、`.history-cards-group` 和 `.history-cards-label` 样式布局。
+- `public/js/app.js` — 彻底移除 `_loadHistory` 中的 fake dummy 数据，改用真实的异步 API fetch 交互；重构 `_renderHistory` 渲染器，动态渲染 wins/total/winrate/chips 以及将 `hole_cards` 与 `community_cards` 用微型卡牌平铺（支持 ♥♦ 红色花色自适应加红样式），实现极佳 of 优秀的视觉与动感交互。
+- `scripts/test-step7-history.js` (新) — 新增 Step 7 完整的端到端自动化集成测试脚本，模拟注册登录、多场景手牌历史数据（摊牌赢、全弃赢、不同街弃牌、摊牌落败等）自动解析、卡牌格式校验与数据库断言。
+
+**关键决策**：
+- **热升级防覆盖**：使用 `ALTER TABLE` 包裹在 `try...catch` 中进行热升级，在不覆盖/损坏已有测试开发库的前提下优雅加入 `seat_id` 物理列。
+- **动态推导与中文描述**：不重复存储牌型名称，在查询历史时根据底牌+公共牌动态调用扑克引擎进行 `evaluate7` 算力推演，保证绝对的一致性并实现高保真的智能行动中文摘要。
+- **Premium 卡牌自适应**：前端重用原有的 `.card.sm` 类与 `_cardInnerHTML` 卡面渲染逻辑，完美契合已有 UI 视觉设计。
+
+**测试验证**：
+- 运行 `npm test`，核心引擎的 48 个德州规则及结算单元测试 100% 通过。
+- 运行 `node scripts/test-step6-e2e.js`，3人局自动下注、摊牌与入库断言 100% 成功。
+- 运行 `node scripts/test-step7-history.js`，包含各种结局的历史记录拉取、中文推算描述、日期格式、字段结构等断言 100% 通过。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -265,7 +288,7 @@ index.html
 | 4 | Socket.IO 握手 + 大厅（玩家列表广播） | ✅ commit `6a3dbfe` |
 | 5 | 扑克引擎（牌堆 / 发牌 / 下注轮 / 边池 / 7选5 牌力 / 摊牌） | ✅ commit `2f27c7a` |
 | 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ✅ commit `021200d` |
-| 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ⏳ |
+| 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ✅ commit `3a39b86` |
 | 8 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---

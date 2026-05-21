@@ -229,15 +229,8 @@ const App = {
 
   async _loadHistory() {
     try {
-      // TODO: const res = await fetch('/api/history');
-      // TODO: const { hands } = await res.json();
-      // 占位符：示例数据
-      const hands = [
-        { id: 1, date: '2024-01-15 21:45', result: 'win',  profit: +320, finalChips: 1320, action: '翻牌圈全押，赢得底池' },
-        { id: 2, date: '2024-01-15 21:30', result: 'loss', profit: -150, finalChips: 1000, action: 'AK 对 AA，被跟注' },
-        { id: 3, date: '2024-01-15 21:10', result: 'win',  profit:  +80, finalChips: 1150, action: '偷盲成功' },
-        { id: 4, date: '2024-01-15 20:55', result: 'push', profit:    0, finalChips: 1070, action: '平局，各自取回' },
-      ];
+      const res = await this._apiGet('/api/history');
+      const hands = res.history || [];
       this._renderHistory(hands);
     } catch (err) {
       console.error('加载历史失败', err);
@@ -256,23 +249,59 @@ const App = {
     pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + totalPnl;
     pnlEl.className   = 'stat-value ' + (totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '');
 
+    // 更新当前筹码数显示
+    document.getElementById('history-chips').textContent = this.state.user?.chips ?? 0;
+
     const list = document.getElementById('history-list');
     if (!hands.length) {
       list.innerHTML = '<div class="history-empty">暂无手牌记录</div>';
       return;
     }
-    list.innerHTML = hands.map(h => `
-      <div class="history-item ${h.result}">
-        <div class="history-item-left">
-          <span class="history-date">${h.date}</span>
-          <span class="history-action">${h.action}</span>
+    list.innerHTML = hands.map(h => {
+      let cardsHtml = '';
+      if ((h.hole_cards && h.hole_cards.length > 0) || (h.community_cards && h.community_cards.length > 0)) {
+        cardsHtml = `<div class="history-cards">`;
+        if (h.hole_cards && h.hole_cards.length > 0) {
+          cardsHtml += `
+            <div class="history-cards-group">
+              <span class="history-cards-label">底牌</span>
+              ${h.hole_cards.map(c => `
+                <div class="card sm ${this._isRed(c.suit) ? 'red' : ''}">
+                  ${this._cardInnerHTML(c)}
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+        if (h.community_cards && h.community_cards.length > 0) {
+          cardsHtml += `
+            <div class="history-cards-group">
+              <span class="history-cards-label">公共牌</span>
+              ${h.community_cards.map(c => `
+                <div class="card sm ${this._isRed(c.suit) ? 'red' : ''}">
+                  ${this._cardInnerHTML(c)}
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+        cardsHtml += `</div>`;
+      }
+
+      return `
+        <div class="history-item ${h.result}">
+          <div class="history-item-left">
+            <span class="history-date">${h.date}</span>
+            <span class="history-action">${h.action}</span>
+            ${cardsHtml}
+          </div>
+          <div class="history-item-right">
+            <span class="history-profit ${h.result}">${h.profit >= 0 ? '+' : ''}${h.profit}</span>
+            <span class="history-chips-after">→ ${h.finalChips} 筹码</span>
+          </div>
         </div>
-        <div class="history-item-right">
-          <span class="history-profit ${h.result}">${h.profit >= 0 ? '+' : ''}${h.profit}</span>
-          <span class="history-chips-after">→ ${h.finalChips} 筹码</span>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   },
 
   // ── 游戏状态更新（由 SocketClient 调用） ──────────

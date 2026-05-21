@@ -737,6 +737,24 @@ input  { font-family: inherit; outline: none; }
 .history-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .history-date   { font-size: 12px; color: var(--text-muted); }
 .history-action { font-size: 14px; color: var(--text); }
+.history-cards {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+.history-cards-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.history-cards-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
 .history-profit { font-size: 18px; font-weight: 700; }
 .history-profit.win  { color: var(--green); }
 .history-profit.loss { color: var(--red); }
