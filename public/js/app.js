@@ -21,6 +21,379 @@
  * }
  */
 
+// ── 高保真爵士乐 BGM 与牌局音效合成系统 (Web Audio API) ──
+const AudioEngine = {
+  ctx: null,
+  bgm: null,
+  bgmPlaying: false,
+  proceduralInterval: null,
+
+  init() {
+    // 兼容浏览器静音唤醒策略
+    const initCtx = () => {
+      if (!this.ctx) {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
+    };
+    document.addEventListener('click', initCtx, { once: true });
+    document.addEventListener('touchstart', initCtx, { once: true });
+
+    // 初始化 BGM 实例 (Mixkit 极其舒缓优雅的爵士乐)
+    this.bgm = new Audio('https://assets.mixkit.co/music/preview/mixkit-smooth-jazz-2067.mp3');
+    this.bgm.loop = true;
+    this.bgm.volume = 0.06; // 细腻舒适的环境音量
+
+    // 监听网络加载错误或跨域拦截，无缝降级到 procedural 实时合成
+    this.bgm.addEventListener('error', () => {
+      console.warn('[AudioEngine] 外部爵士乐 BGM 加载失败，无缝降级至 Web Audio 实时合成 Lo-Fi 爵士乐。');
+      if (this.bgmPlaying && !this.proceduralInterval) {
+        this._startProceduralJazz();
+      }
+    });
+
+    // 读取本地音乐偏好
+    const savedMusic = localStorage.getItem('poker_night_bgm');
+    if (savedMusic === 'on') {
+      const startOnInteract = () => {
+        initCtx();
+        this.setBGM(true);
+      };
+      document.addEventListener('click', startOnInteract, { once: true });
+    }
+  },
+
+  setBGM(play) {
+    this.bgmPlaying = play;
+    localStorage.setItem('poker_night_bgm', play ? 'on' : 'off');
+    
+    // 同步顶部 header 按钮的霓虹发光样式
+    const btn = document.getElementById('btn-music');
+    if (btn) {
+      if (play) {
+        btn.textContent = '🎷 爵士乐: 开';
+        btn.style.borderColor = 'var(--gold)';
+        btn.style.background = 'rgba(201, 168, 76, 0.15)';
+        btn.style.boxShadow = '0 0 10px rgba(201, 168, 76, 0.4)';
+        btn.style.color = 'var(--gold-light)';
+      } else {
+        btn.textContent = '🎷 爵士乐: 关';
+        btn.style.borderColor = 'rgba(201, 168, 76, 0.3)';
+        btn.style.background = 'transparent';
+        btn.style.boxShadow = 'none';
+        btn.style.color = 'var(--gold)';
+      }
+    }
+
+    if (!play) {
+      if (this.bgm) this.bgm.pause();
+      this._stopProceduralJazz();
+      return;
+    }
+
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
+    this.bgm.play().then(() => {
+      this._stopProceduralJazz(); // 加载成功则停用合成音乐
+    }).catch(() => {
+      console.log('[AudioEngine] 浏览器自动播放拦截，改用 Web Audio 实时合成优雅的 Lo-Fi 爵士乐。');
+      this._startProceduralJazz();
+    });
+  },
+
+  toggleBGM() {
+    this.setBGM(!this.bgmPlaying);
+  },
+
+  // 纯原生振荡器生成 100% 离线、零延迟高清音效
+  playSFX(type) {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
+    try {
+      switch (type) {
+        case 'deal':
+          this._synthDeal();
+          break;
+        case 'chip':
+          this._synthChip();
+          break;
+        case 'check':
+          this._synthCheck();
+          break;
+        case 'fold':
+          this._synthFold();
+          break;
+      }
+    } catch (e) {
+      console.error('[AudioEngine] 音效合成错误:', e);
+    }
+  },
+
+  _synthDeal() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    // 白噪音生成发牌摩擦声
+    const bufferSize = ctx.sampleRate * 0.14;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.setValueAtTime(3.2, now);
+    filter.frequency.setValueAtTime(1400, now);
+    filter.frequency.exponentialRampToValueAtTime(420, now + 0.14);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    noise.start(now);
+    noise.stop(now + 0.15);
+  },
+
+  _synthChip(pitchMultiplier = 1.0, volumeFactor = 1.0) {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    // 陶瓷/金属筹码清脆撞击双正弦谐波
+    const f1 = 2050 * pitchMultiplier;
+    const f2 = 2700 * pitchMultiplier;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(f1, now);
+
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(f2, now + 0.003); // 3ms 撞击延迟
+
+    gainNode.gain.setValueAtTime(0.15 * volumeFactor, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now + 0.003);
+
+    osc1.stop(now + 0.09);
+    osc2.stop(now + 0.09);
+  },
+
+  _synthCheck() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode1 = ctx.createGain();
+    const gainNode2 = ctx.createGain();
+
+    // 沉稳的实木桌面“叩击两声”
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(155, now);
+    gainNode1.gain.setValueAtTime(0.42, now);
+    gainNode1.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+    osc1.connect(gainNode1);
+    gainNode1.connect(ctx.destination);
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(145, now + 0.11);
+    gainNode2.gain.setValueAtTime(0.32, now + 0.11);
+    gainNode2.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+
+    osc2.connect(gainNode2);
+    gainNode2.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now + 0.11);
+
+    osc1.stop(now + 0.1);
+    osc2.stop(now + 0.21);
+  },
+
+  _synthFold() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    // 低通纸张滑走声
+    const bufferSize = ctx.sampleRate * 0.22;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(950, now);
+    filter.frequency.exponentialRampToValueAtTime(160, now + 0.20);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    noise.start(now);
+    noise.stop(now + 0.21);
+  },
+
+  // ── PROCEDURAL LO-FI JAZZ LOOP (Web Audio 合成优雅爵士乐) ──
+  // 零体积占用，高逼格实时合成 walking bass、Rhodes 温润和弦与摇摆 ride 叮擦！
+  _startProceduralJazz() {
+    this._stopProceduralJazz();
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
+    console.log('[AudioEngine] 启动 Lo-Fi 爵士乐合成循环...');
+    let beat = 0;
+    
+    // 爵士 7 和弦组: FM7 -> G7 -> Em7 -> Am7
+    const chords = [
+      [174.61, 220.00, 261.63, 329.63], // FM7 (F3, A3, C4, E4)
+      [196.00, 246.94, 293.66, 349.23], // G7  (G3, B3, D4, F4)
+      [164.81, 196.00, 246.94, 293.66], // Em7 (E3, G3, B3, D4)
+      [220.00, 261.63, 329.63, 392.00]  // Am7 (A3, C4, E4, G4)
+    ];
+
+    // 优雅的爵士 Walking Bassline
+    const basslines = [
+      [87.31, 110.00, 130.81, 123.47], // F3 -> A3 -> C4 -> B3
+      [98.00, 123.47, 146.83, 138.59], // G3 -> B3 -> D4 -> C#4
+      [82.41, 98.00, 123.47, 116.54],  // E3 -> G3 -> B3 -> Bb3
+      [110.00, 130.81, 164.81, 98.00]  // A3 -> C4 -> E4 -> G3
+    ];
+
+    const bpm = 96;
+    const beatInterval = 60000 / bpm; // 节拍时间 (ms)
+
+    this.proceduralInterval = setInterval(() => {
+      try {
+        const now = this.ctx.currentTime;
+        const measure = Math.floor(beat / 4) % chords.length;
+        const beatOfMeasure = beat % 4;
+
+        // 1. Walking Bass (每拍走一步)
+        const bassFreq = basslines[measure][beatOfMeasure];
+        const bassOsc = this.ctx.createOscillator();
+        const bassGain = this.ctx.createGain();
+        bassOsc.type = 'triangle'; // 三角波重现原声木贝斯温厚颗粒感
+        bassOsc.frequency.setValueAtTime(bassFreq / 2, now); // 下沉低八度
+        bassGain.gain.setValueAtTime(0.08, now);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, now + (beatInterval / 1000) * 0.96);
+        bassOsc.connect(bassGain);
+        bassGain.connect(this.ctx.destination);
+        bassOsc.start(now);
+        bassOsc.stop(now + (beatInterval / 1000));
+
+        // 2. 温润 Rhodes 和弦 (小节首拍长音响起，缓缓消散)
+        if (beatOfMeasure === 0) {
+          chords[measure].forEach(freq => {
+            const chordOsc = this.ctx.createOscillator();
+            const chordGain = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            
+            chordOsc.type = 'triangle';
+            chordOsc.frequency.setValueAtTime(freq, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(600, now); // 低通滤波滤去刺耳频率，成就醇厚毛毡 Rhodes 质感
+            
+            chordGain.gain.setValueAtTime(0.024, now);
+            chordGain.gain.exponentialRampToValueAtTime(0.001, now + 3.1);
+            
+            chordOsc.connect(filter);
+            filter.connect(chordGain);
+            chordGain.connect(this.ctx.destination);
+            
+            chordOsc.start(now);
+            chordOsc.stop(now + 3.2);
+          });
+        }
+
+        // 3. 经典的爵士 Ride 吊镲律动 ("Spang-a-lang")
+        this._playCymbal(now);
+        if (beatOfMeasure === 1 || beatOfMeasure === 3) {
+          // 摇摆三连音附点跳跃
+          this._playCymbal(now + (beatInterval / 1000) * 0.66);
+        }
+
+        beat++;
+      } catch (e) {
+        console.error('[AudioEngine] 爵士乐实时合成异常:', e);
+      }
+    }, beatInterval);
+  },
+
+  _playCymbal(time) {
+    const ctx = this.ctx;
+    const bufferSize = ctx.sampleRate * 0.08;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(9000, time);
+    filter.Q.setValueAtTime(1.2, time);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.007, time); // 极致细腻微弱的吊镲击打
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.07);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    noise.start(time);
+    noise.stop(time + 0.08);
+  },
+
+  _stopProceduralJazz() {
+    if (this.proceduralInterval) {
+      clearInterval(this.proceduralInterval);
+      this.proceduralInterval = null;
+      console.log('[AudioEngine] Lo-Fi 爵士乐合成循环已停止。');
+    }
+  }
+};
+
 const App = {
 
   state: {
@@ -31,6 +404,9 @@ const App = {
   // ── 启动 ──────────────────────────────────────────
 
   async init() {
+    // 初始化音效引擎
+    AudioEngine.init();
+
     this._bindAuthEvents();
     this._bindGameEvents();
     this._bindHistoryEvents();
@@ -184,6 +560,10 @@ const App = {
     document.getElementById('btn-show-history').addEventListener('click', () => {
       this._loadHistory();
       this._showView('history');
+    });
+
+    document.getElementById('btn-music').addEventListener('click', () => {
+      AudioEngine.toggleBGM();
     });
 
     // 大厅蒙层的关闭按钮 + 角标点击切换
@@ -388,6 +768,9 @@ const App = {
   /** 新手牌开始，重置桌面 */
   startNewHand() {
     console.log('%c[Game] ====================== 新局开始 ======================', 'color: #e040fb; font-weight: bold; font-size: 14px;');
+    // 新手牌发牌音效
+    AudioEngine.playSFX('deal');
+
     // 清公共牌
     for (let i = 0; i < 5; i++) {
       const el = document.getElementById(`comm-${i}`);
@@ -437,6 +820,9 @@ const App = {
 
   /** 翻/转/河牌动画式发牌 */
   dealCommunityCards(cards) {
+    // 播放发牌音效
+    AudioEngine.playSFX('deal');
+
     cards.forEach((card, i) => {
       const el = document.getElementById(`comm-${i}`);
       if (card && el) {
@@ -496,6 +882,12 @@ const App = {
       }
     }
 
+    if (player.isOffline) {
+      seat.classList.add('offline');
+    } else {
+      seat.classList.remove('offline');
+    }
+
     this._applySeatStatus(seat, player.status);
   },
 
@@ -510,12 +902,22 @@ const App = {
     seat.querySelector('.dealer-btn').hidden     = true;
     seat.querySelector('.seat-cards').style.opacity = '1';
     seat.querySelector('.seat-cards').innerHTML  = ''; // 空座时不显示手牌占位背部
-    seat.classList.remove('active-turn', 'folded', 'all-in');
+    seat.classList.remove('active-turn', 'folded', 'all-in', 'offline');
   },
 
   /** 玩家行动文字提示 */
   onPlayerAction(data) {
     console.log(`%c[Action] 席位 ${data.seatId} 动作: ${data.action} | 金额: ${data.amount}`, 'color: #ff9800; font-weight: bold;');
+    
+    // 播放相应动作音效
+    if (data.action === 'fold') {
+      AudioEngine.playSFX('fold');
+    } else if (data.action === 'check') {
+      AudioEngine.playSFX('check');
+    } else if (data.action === 'call' || data.action === 'raise' || data.action === 'allin') {
+      AudioEngine.playSFX('chip');
+    }
+
     const seat = document.getElementById(`seat-${data.seatId}`);
     if (!seat) return;
     const labels = { fold: '弃牌', check: '过牌', call: `跟注 ${data.amount}`, raise: `加注 ${data.amount}`, allin: '全押' };
@@ -635,6 +1037,16 @@ const App = {
     }
 
     document.getElementById('hero-dealer').hidden = !player.isDealer;
+    
+    const heroSeat = document.getElementById('seat-0');
+    if (heroSeat) {
+      if (player.isOffline) {
+        heroSeat.classList.add('offline');
+      } else {
+        heroSeat.classList.remove('offline');
+      }
+    }
+
     this._applySeatStatus(document.getElementById('seat-0'), player.status);
   },
 
@@ -700,7 +1112,7 @@ const App = {
   _lastAnimateHandId: null,
   _lastFloatedHandId: null,
 
-  /** 金色筹码飞射汇聚动画 */
+  /** 金色筹码曲线飞射汇聚动画与物理受击反馈 */
   _animateChips(targetSeatId) {
     const tableEl = document.querySelector('.table-scene');
     const potEl = document.querySelector('.pot-row');
@@ -721,43 +1133,101 @@ const App = {
     const endX = targetRect.left - tableRect.left + targetRect.width / 2;
     const endY = targetRect.top - tableRect.top + targetRect.height / 2;
 
-    const numChips = 10;
+    // 动态注入样式表支持高级抛物线动画
+    const styleId = 'dynamic-coin-animations';
+    let styleEl = document.getElementById(styleId);
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+
+    const numChips = 22; // 提升至 22 颗金色筹码
+    const timestamp = Date.now();
+
     for (let i = 0; i < numChips; i++) {
       const chip = document.createElement('div');
       chip.className = 'chip-particle';
-      // 粒子居中定位偏移
-      chip.style.left = `${startX - 7}px`;
-      chip.style.top = `${startY - 7}px`;
-      chip.style.transform = 'translate(0, 0) scale(1)';
+      chip.style.left = `${startX - 8}px`; // 微调居中
+      chip.style.top = `${startY - 8}px`;
       tableEl.appendChild(chip);
 
-      // 第一阶段：向随机方向爆射炸开
+      // 第一段：向随机方向爆射炸开的物理偏置
       const angle = Math.random() * Math.PI * 2;
-      const radius = 25 + Math.random() * 30; // 25px 至 55px 爆炸扩散半径
+      const radius = 30 + Math.random() * 35; // 30px 至 65px 爆破扩散半径
       const scatterX = Math.cos(angle) * radius;
       const scatterY = Math.sin(angle) * radius;
 
-      // 错落有致的流体动画延迟
-      const delay = i * 40;
+      // 目标终点相对位移
+      const finalX = endX - startX;
+      const finalY = endY - startY;
+
+      // 黄金贝塞尔弧线控制点：中途往上方和随机左右偏置抛射，模拟抛物线
+      const midX = scatterX + (finalX - scatterX) * 0.45 + (Math.random() * 40 - 20);
+      const midY = Math.min(scatterY, finalY) - (110 + Math.random() * 60); // 强力弧度向上拉起
+
+      // 独一无二的随机金币轨道动画名
+      const animName = `coin-trajectory-${targetSeatId}-${i}-${timestamp}`;
+
+      // 写入硬件加速的 CSS Keyframes 规则
+      try {
+        styleEl.sheet.insertRule(`
+          @keyframes ${animName} {
+            0% {
+              transform: translate(0, 0) scale(0.6);
+              opacity: 0;
+            }
+            12% {
+              transform: translate(${scatterX}px, ${scatterY}px) scale(1.3);
+              opacity: 1;
+            }
+            45% {
+              transform: translate(${midX}px, ${midY}px) scale(1.1);
+              opacity: 0.95;
+            }
+            100% {
+              transform: translate(${finalX}px, ${finalY}px) scale(0.35);
+              opacity: 0;
+            }
+          }
+        `, 0);
+      } catch (e) {
+        // 防止同名注入冲突
+      }
+
+      // 给粒子应用动态动画
+      const delay = i * 35; // 错落有致的瀑布流延迟
+      chip.style.animation = `${animName} 1.05s cubic-bezier(0.12, 0.85, 0.35, 1.0) ${delay}ms forwards`;
+
+      // 音效与头像物理受击的节奏同步 (1.05s 的动画在 delay+1000ms 左右撞击目标)
+      const hitTime = delay + 960;
+      const pitchMultiplier = 0.85 + (i * 0.018); // 音调上扬
 
       setTimeout(() => {
-        // 第一段：炸开
-        chip.style.transform = `translate(${scatterX}px, ${scatterY}px) scale(1.1)`;
+        // 1. 播放陶瓷/金属筹码清脆落地雨声
+        try {
+          AudioEngine._synthChip(pitchMultiplier, 0.25 - (i * 0.003));
+        } catch (e) {}
 
-        // 第二阶段：在 300ms 后飞向目标席位头像并缩小、淡出
-        setTimeout(() => {
-          const finalX = endX - startX;
-          const finalY = endY - startY;
-          chip.style.transform = `translate(${finalX}px, ${finalY}px) scale(0.4)`;
-          chip.style.opacity = '0';
-        }, 300);
+        // 2. 触发座位头像物理果冻般弹性缩放
+        targetAvatar.classList.remove('bump');
+        targetAvatar.offsetWidth; // 触发 reflow
+        targetAvatar.classList.add('bump');
+      }, hitTime);
 
-      }, delay);
-
-      // 动画完成后从 DOM 清理粒子
+      // 动画完全结束后，销毁粒子 DOM 节点并移除对应的 CSS 规则
       setTimeout(() => {
         chip.remove();
-      }, delay + 1200);
+        try {
+          // 清理样式规则，防止内存泄漏
+          for (let j = 0; j < styleEl.sheet.cssRules.length; j++) {
+            if (styleEl.sheet.cssRules[j].name === animName) {
+              styleEl.sheet.deleteRule(j);
+              break;
+            }
+          }
+        } catch (e) {}
+      }, delay + 1300);
     }
   },
 

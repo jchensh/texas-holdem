@@ -65,12 +65,13 @@ class Table {
       console.log(`[Table] 玩家 ${user.username} 重新绑定至座位 ${seatIndex} (${socket.id})`);
       this.syncLobbyState();
       
-      // 如果游戏正在进行，立即给该 socket 单独补发当前游戏状态
+      // 如果游戏正在进行，立即广播最新的游戏状态（使所有人屏幕上的置灰和离线状态立即解除）
       if (this.game) {
-        this.sendToSocket(socket, 'game_state', this.game.getPublicState());
-        // 如果刚好是他的回合，补发 your_turn
+        this.broadcastGameState();
+        // 如果刚好是他的回合，重新触发 startActionTimer 恢复 full 30s 倒计时并补发 your_turn
         if (this.game.currentSeat === seatIndex) {
-          this.sendTurnNotificationToSocket(socket, seatIndex);
+          console.log(`[Table] 玩家 ${user.username} 在其回合内重连，恢复 30s 倒计时`);
+          this.startActionTimer(seatIndex);
         }
       }
       return;
@@ -151,6 +152,13 @@ class Table {
           // 游戏进行中：保留座位，由超时自动弃牌托管
           if (this.game && this.game.phase !== 'ended') {
             console.log(`[Table] 玩家 ${seat.username} 彻底断开，但手牌进行中，保留席位托管`);
+            // 立即广播当前游戏状态以使对手屏幕能立刻看到“离线”置灰与霓虹标签
+            this.broadcastGameState();
+            // 如果刚好轮到他的回合，立即加速其思考倒计时到 2 秒超速超时
+            if (this.game.currentSeat === seatIndex) {
+              console.log(`[Table] 玩家 ${seat.username} 在其回合断开，加速倒计时至 2 秒`);
+              this.startActionTimer(seatIndex);
+            }
           } else {
             // 游戏未进行：立即站起空出座位
             console.log(`[Table] 玩家 ${seat.username} 彻底离线，空出座位 ${seatIndex}`);
@@ -348,7 +356,11 @@ class Table {
     // 1. 给被激活的玩家私发 your_turn 事件，提供其专有的下注滑块范围
     this.sendTurnNotificationToSeat(seatId);
 
-    // 2. 设定 30 秒超时自动动作
+    const seat = this.seats[seatId];
+    const isOffline = !!(seat && seat.socketIds.size === 0);
+    const timeoutMs = isOffline ? 2000 : config.ACTION_TIMEOUT_MS;
+
+    // 2. 设定超时自动动作
     this.timer = setTimeout(() => {
       console.log(`[Table] 座位 ${seatId} 行动超时，触发自动托管`);
       const player = this.game._playerBySeat(seatId);
@@ -368,7 +380,7 @@ class Table {
         this.broadcast('player_action', { seatId, action: 'fold', amount: 0 });
         this.handleGameEngineResult(result, seatId, { type: 'fold' });
       }
-    }, config.ACTION_TIMEOUT_MS);
+    }, timeoutMs);
   }
 
   clearActionTimer() {
@@ -400,11 +412,15 @@ class Table {
     const callAmount = this.game.currentBet - player.currentBet;
     const canRaise = player.chips > callAmount;
 
+    const seat = this.seats[seatId];
+    const isOffline = !!(seat && seat.socketIds.size === 0);
+    const timeLimit = isOffline ? 2 : Math.floor(config.ACTION_TIMEOUT_MS / 1000);
+
     socket.emit('your_turn', {
       callAmount: Math.min(callAmount, player.chips),
       minRaise: canRaise ? Math.min(this.game.currentBet + this.game.minRaise, player.chips + player.currentBet) : 0,
       maxRaise: canRaise ? (player.chips + player.currentBet) : 0,
-      timeLimit: Math.floor(config.ACTION_TIMEOUT_MS / 1000)
+      timeLimit: timeLimit
     });
   }
 
@@ -616,12 +632,35 @@ class Table {
     return list;
   }
 
+  _enrichOfflineStatus(state) {
+    if (!state || !Array.isArray(state.players)) return;
+    state.players.forEach(p => {
+      const seat = this.seats.find(s => s && s.username === p.username);
+      if (seat) {
+        p.isOffline = (seat.socketIds.size === 0);
+      } else {
+        p.isOffline = false;
+      }
+    });
+  }
+
   /**
    * 发送相对转换后的事件至指定 Socket
    */
   sendToSocket(socket, event, data) {
     const viewerSeatId = socket.data.seatId;
-    const relData = this.translateToRelative(data, viewerSeatId);
+    let relData = data;
+    if (data && typeof data === 'object') {
+      if (event === 'game_state' || event === 'new_hand') {
+        relData = JSON.parse(JSON.stringify(data));
+        if (event === 'game_state') {
+          this._enrichOfflineStatus(relData);
+        } else if (relData.state) {
+          this._enrichOfflineStatus(relData.state);
+        }
+      }
+    }
+    relData = this.translateToRelative(relData, viewerSeatId);
     socket.emit(event, relData);
   }
 
