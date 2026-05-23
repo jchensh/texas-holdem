@@ -30,7 +30,7 @@ const sessionMiddleware = cookieSession({
   maxAge:   config.SESSION_MAX_AGE_MS,
   httpOnly: true,
   sameSite: 'lax',
-  secure:   config.NODE_ENV === 'production',
+  secure:   false, // 允许 HTTP 下传输 cookie（支持直接公网 IP 访问测试）
 });
 
 app.use(express.json());
