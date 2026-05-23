@@ -267,14 +267,15 @@ input  { font-family: inherit; outline: none; }
   align-items: center;
   gap: 4px;
   user-select: none;
+  z-index: 20; /* 调高层级，保证盖在桌子 border 上面，绝不被挡住 */
 }
 
 /* 五个对手座位的位置 */
-#seat-1 { left:  6%; top: 64%; }
-#seat-2 { left:  1%; top: 30%; }
-#seat-3 { left: 18%; top:  3%; }
-#seat-4 { left: 54%; top:  3%; }
-#seat-5 { left: 74%; top: 30%; }
+#seat-1 { left:  3%; top: 66%; }
+#seat-2 { left: -2%; top: 30%; }
+#seat-3 { left: 14%; top:  0%; }
+#seat-4 { left: 58%; top:  0%; }
+#seat-5 { left: 84%; top: 30%; }
 
 .seat-cards { display: flex; gap: 3px; }
 

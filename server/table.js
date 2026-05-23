@@ -482,6 +482,7 @@ class Table {
 
     // 4. 重置本手实例，延迟 6 秒后启动下一手
     this.game = null;
+    this.notifyAdmin();
     setTimeout(() => {
       // 彻底断线的玩家若在此刻不在手牌里，移除其座位
       this.cleanupOfflinePlayers();
@@ -542,6 +543,7 @@ class Table {
       const stateForViewer = this.game.getPublicState(viewerSeatId);
       this.sendToSocket(socket, 'game_state', stateForViewer);
     }
+    this.notifyAdmin();
   }
 
   /**
@@ -563,6 +565,7 @@ class Table {
 
     const players = Array.from(seen.values());
     this.broadcast('lobby_state', { players, count: players.length });
+    this.notifyAdmin();
   }
 
   /**
@@ -589,6 +592,23 @@ class Table {
           p.isDealer = absSeat === state.dealerSeat;
         });
         state.players.sort((a, b) => a.seatId - b.seatId);
+      }
+      if (state.results) {
+        if (Array.isArray(state.results.summary)) {
+          state.results.summary.forEach(s => {
+            const absSeat = s.seatId;
+            s.seatId = (absSeat - viewerSeatId + 6) % 6;
+          });
+        }
+        if (state.results.hands && typeof state.results.hands === 'object') {
+          const relHands = {};
+          for (const [absSeatStr, handData] of Object.entries(state.results.hands)) {
+            const absSeat = parseInt(absSeatStr, 10);
+            const relSeat = (absSeat - viewerSeatId + 6) % 6;
+            relHands[relSeat] = handData;
+          }
+          state.results.hands = relHands;
+        }
       }
     };
 
@@ -671,6 +691,181 @@ class Table {
     for (const socket of this.getAllSockets()) {
       this.sendToSocket(socket, event, data);
     }
+  }
+
+  kickPlayer(username) {
+    const targetName = String(username).toLowerCase();
+    const seatIndex = this.seats.findIndex(s => s && s.username.toLowerCase() === targetName);
+    if (seatIndex === -1) {
+      // 检查旁观者
+      let kickedSpec = false;
+      for (const [socketId, spec] of this.spectators.entries()) {
+        if (spec.username.toLowerCase() === targetName) {
+          const socket = this.io.sockets.sockets.get(socketId);
+          if (socket) {
+            socket.emit('error', { message: '你已被管理员移出游戏' });
+            socket.disconnect(true);
+          }
+          this.spectators.delete(socketId);
+          kickedSpec = true;
+        }
+      }
+      if (kickedSpec) {
+        this.syncLobbyState();
+        return true;
+      }
+      return false;
+    }
+
+    const seat = this.seats[seatIndex];
+    if (seat) {
+      console.log(`[Table] 管理员踢出玩家: ${username} (座位 ${seatIndex})`);
+      
+      // 1. 断开所有相关 socket
+      for (const socketId of Array.from(seat.socketIds)) {
+        const socket = this.io.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.emit('error', { message: '你已被管理员移出游戏' });
+          socket.disconnect(true);
+        }
+      }
+
+      // 2. 如果游戏正在进行中，且该玩家还在手牌中
+      if (this.game && this.game.phase !== 'ended') {
+        const player = this.game._playerBySeat(seatIndex);
+        if (player && player.status === 'active') {
+          // 如果当前正好轮到该玩家行动，通过正常引擎接口推进游戏进程
+          if (this.game.currentSeat === seatIndex) {
+            this.clearActionTimer();
+            try {
+              const result = this.game.act(seatIndex, { type: 'fold' });
+              this.broadcast('player_action', { seatId: seatIndex, action: 'fold', amount: 0 });
+              this.handleGameEngineResult(result, seatIndex, { type: 'fold' });
+            } catch (err) {
+              console.error('[Table] 踢人强制弃牌推进失败:', err.message);
+              player.status = 'folded';
+            }
+          } else {
+            // 如果不是该玩家的回合，直接在引擎中标记为 folded
+            player.status = 'folded';
+            this.broadcast('player_action', { seatId: seatIndex, action: 'fold', amount: 0 });
+            
+            // 检查只剩一个 active 玩家的情况以推进局终（防止局卡死）
+            const activePlayers = this.game.players.filter(p => p.status === 'active');
+            if (activePlayers.length <= 1) {
+              try {
+                const result = this.game._afterAction();
+                this.handleGameEngineResult(result, seatIndex, { type: 'fold' });
+              } catch (e) {
+                console.error('[Table] 踢人非回合内局推进失败:', e.message);
+              }
+            }
+          }
+        }
+      }
+
+      // 3. 清空座位并广播
+      this.seats[seatIndex] = null;
+      this.broadcast('player_left', { seatId: seatIndex });
+      this.syncLobbyState();
+      this.checkAutoStart();
+      return true;
+    }
+    return false;
+  }
+
+  notifyAdmin() {
+    if (this.io) {
+      this.io.of('/admin').emit('admin_game_state', this.getAdminState());
+    }
+  }
+
+  getAdminState() {
+    // 1. 获取物理座位状态（不进行相对转换，暴露绝对座位）
+    const onlinePlayers = this.seats.map((seat, seatId) => {
+      if (!seat) return null;
+      return {
+        seatId,
+        username: seat.username,
+        chips: seat.chips,
+        isOffline: seat.socketIds.size === 0,
+      };
+    }).filter(Boolean);
+
+    // 2. 获取旁观者名单
+    const spectatorsList = [];
+    const seenSpecIds = new Set();
+    for (const spec of this.spectators.values()) {
+      if (!seenSpecIds.has(spec.userId)) {
+        seenSpecIds.add(spec.userId);
+        spectatorsList.push({
+          username: spec.username,
+          chips: spec.chips,
+        });
+      }
+    }
+
+    // 3. 获取实时扑克引擎快照（明牌！）
+    let gameState = null;
+    if (this.game) {
+      const pot = this.game.players.reduce((s, p) => s + p.totalBet, 0);
+      gameState = {
+        handId:         this.game.handId,
+        phase:          this.game.phase,
+        pot,
+        communityCards: this.game.communityCards.slice(),
+        currentSeat:    this.game.currentSeat,
+        currentBet:     this.game.currentBet,
+        minRaise:       this.game.minRaise,
+        smallBlind:     this.game.smallBlind,
+        bigBlind:       this.game.bigBlind,
+        dealerSeat:     this.game.dealerSeat,
+        results:        this.game.results,
+        players: this.game.players.map(p => ({
+          seatId:    p.seatId,
+          username:  p.username,
+          chips:     p.chips,
+          status:    p.status,
+          bet:       p.currentBet,
+          totalBet:  p.totalBet,
+          isDealer:  p.seatId === this.game.dealerSeat,
+          holeCards: p.holeCards.slice(), // 绝对明牌暴露给管理员！
+        })),
+      };
+    }
+
+    // 4. 从数据库获取最近 10 手手牌结算摘要和系统级统计
+    let recentHistory = [];
+    let systemStats = { totalUsers: 0, totalChips: 0 };
+    try {
+      // 聚合按 hand_id 分组的局历史
+      recentHistory = db.prepare(`
+        SELECT 
+          hand_id, 
+          datetime(MAX(ended_at)/1000, 'unixepoch', 'localtime') as ended_at, 
+          GROUP_CONCAT(username || '(' || (case when profit >= 0 then '+' else '' end) || profit || ')') as summary 
+        FROM hand_history 
+        JOIN users ON users.id = hand_history.user_id 
+        GROUP BY hand_id 
+        ORDER BY MAX(ended_at) DESC 
+        LIMIT 10
+      `).all();
+
+      const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get();
+      const chipSumRow = db.prepare('SELECT SUM(chips) as sum FROM users').get();
+      systemStats.totalUsers = userCountRow ? userCountRow.count : 0;
+      systemStats.totalChips = chipSumRow ? chipSumRow.sum : 0;
+    } catch (e) {
+      console.error('[AdminState] 查询数据库失败:', e);
+    }
+
+    return {
+      gameState,
+      onlinePlayers,
+      spectators: spectatorsList,
+      recentHistory,
+      systemStats,
+    };
   }
 }
 

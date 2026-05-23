@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Night - 管理后台</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    /* ══════════════════════════════════════════
+       变量 & 全局样式
+       ══════════════════════════════════════════ */
+    :root {
+      --bg: #0b0f19;
+      --bg-surface: rgba(22, 28, 45, 0.7);
+      --bg-card: rgba(30, 41, 59, 0.8);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(201, 168, 76, 0.2);
+      
+      --gold: #c9a84c;
+      --gold-glow: rgba(201, 168, 76, 0.5);
+      --green: #3fb950;
+      --green-glow: rgba(63, 185, 80, 0.5);
+      --red: #f43f5e;
+      --red-glow: rgba(244, 63, 94, 0.5);
+      --blue: #3b82f6;
+      --blue-glow: rgba(59, 130, 246, 0.5);
+      
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --radius-lg: 16px;
+      --radius-md: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 20%, #111a2e 0%, var(--bg) 80%);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding-bottom: 40px;
+    }
+
+    /* ══════════════════════════════════════════
+       布局容器
+       ══════════════════════════════════════════ */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(11, 15, 25, 0.8);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-section h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, var(--gold), #ffe082);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2.5px 8px;
+      border-radius: 999px;
+      background: rgba(201, 168, 76, 0.15);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      text-shadow: 0 0 6px rgba(201,168,76,0.3);
+    }
+
+    .conn-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
+    
+    .status-dot.connected {
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+      animation: pulseGreen 2s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+      70% { box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 30px auto 0;
+      padding: 0 30px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 25px;
+    }
+
+    /* ══════════════════════════════════════════
+       系统看板卡片
+       ══════════════════════════════════════════ */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .metric-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .metric-icon-wrap {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .metric-card.gold .metric-icon-wrap { background: rgba(201, 168, 76, 0.1); color: var(--gold); border: 1px solid rgba(201, 168, 76, 0.2); }
+    .metric-card.green .metric-icon-wrap { background: rgba(63, 185, 80, 0.1); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.2); }
+    .metric-card.blue .metric-icon-wrap { background: rgba(59, 130, 246, 0.1); color: var(--blue); border: 1px solid rgba(59, 130, 246, 0.2); }
+    .metric-card.red .metric-icon-wrap { background: rgba(244, 63, 94, 0.1); color: var(--red); border: 1px solid rgba(244, 63, 94, 0.2); }
+
+    .metric-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    /* ══════════════════════════════════════════
+       主体监控分布
+       ══════════════════════════════════════════ */
+    .dashboard-body {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 25px;
+    }
+
+    @media(max-width: 1100px) {
+      .dashboard-body {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+
+    .panel-header h2 {
+      font-size: 16px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .panel-header h2::before {
+      content: "";
+      display: inline-block;
+      width: 4px;
+      height: 14px;
+      background: var(--gold);
+      border-radius: 2px;
+    }
+
+    /* ══════════════════════════════════════════
+       牌桌可视化监视器 (Interactive Table Monitor)
+       ══════════════════════════════════════════ */
+    .table-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 480px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-md);
+      border: 1px dashed rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .table-monitor-scene {
+      position: relative;
+      width: 860px;
+      height: 460px;
+    }
+
+    /* 微缩绿色牌桌 */
+    .poker-table-mini {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      transform: translate(-50%, -50%);
+      width: 460px;
+      height: 220px;
+      border-radius: 110px;
+      background: radial-gradient(ellipse at 50% 40%,
+        #216834 0%, #134722 60%, #0d3017 100%);
+      border: 11px solid #4a280f;
+      box-shadow:
+        0 0 0 2px #6b3b18,
+        0 15px 40px rgba(0,0,0,0.65),
+        inset 0 0 30px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      z-index: 1;
+    }
+
+    .table-center-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mini-comm-cards {
+      display: flex;
+      gap: 4px;
+    }
+
+    .mini-pot-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,0,0,0.45);
+      border-radius: 12px;
+      padding: 2.5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold);
+      border: 1px solid rgba(201, 168, 76, 0.25);
+    }
+    
+    .mini-phase-badge {
+      font-size: 9px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.5px;
+    }
+
+    /* 绝对座位绝对定位 */
+    .mini-seat {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+      transition: transform 0.3s ease;
+    }
+
+    /* 6个绝对座位的圆环定位 (绝对座位) */
+    .mini-seat[data-seat="0"] { left: 42%; bottom: 4%; }
+    .mini-seat[data-seat="1"] { left: 6%; bottom: 22%; }
+    .mini-seat[data-seat="2"] { left: 6%; top: 22%; }
+    .mini-seat[data-seat="3"] { left: 42%; top: 4%; }
+    .mini-seat[data-seat="4"] { left: 78%; top: 22%; }
+    .mini-seat[data-seat="5"] { left: 78%; bottom: 22%; }
+
+    .mini-seat-body {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(22, 28, 45, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 8px;
+      min-width: 105px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    .mini-seat.active-turn .mini-seat-body {
+      border-color: var(--gold);
+      box-shadow: 0 0 10px rgba(201, 168, 76, 0.4);
+    }
+
+    .mini-seat.folded {
+      opacity: 0.4;
+    }
+    
+    .mini-seat.allin .mini-seat-body {
+      border-color: var(--red);
+    }
+
+    .mini-seat.empty-seat {
+      opacity: 0.25;
+    }
+    
+    .mini-seat.empty-seat .mini-seat-body {
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .mini-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+
+    .mini-seat.active-turn .mini-avatar {
+      border-color: var(--gold);
+      background: rgba(201, 168, 76, 0.15);
+    }
+
+    .mini-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      overflow: hidden;
+    }
+
+    .mini-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mini-chips {
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    /* 底牌绝对曝光 - 绝对置顶 */
+    .mini-hole-cards {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 2px;
+      z-index: 15;
+    }
+
+    .mini-seat-bet-val {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--gold);
+      background: rgba(201, 168, 76, 0.1);
+      border: 1.5px solid rgba(201, 168, 76, 0.35);
+      border-radius: 8px;
+      padding: 1px 6px;
+      position: absolute;
+      top: -12px;
+      right: 4px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+    }
+
+    /* 绝对座位号气泡 */
+    .absolute-seat-badge {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      width: 14px;
+      height: 14px;
+      background: #475569;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #fff;
+      font-size: 8px;
+      font-weight: 800;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mini-seat.active-turn .absolute-seat-badge {
+      background: var(--gold);
+      color: #111;
+      border-color: #ffe082;
+    }
+
+    /* 庄家按钮 D */
+    .mini-dealer-btn {
+      position: absolute;
+      bottom: -6px;
+      left: -6px;
+      width: 14px;
+      height: 14px;
+      background: var(--gold);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #111;
+      font-size: 8px;
+      font-weight: 900;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 霓虹 OFFLINE 标签 */
+    .mini-offline-badge {
+      position: absolute;
+      bottom: -6px;
+      right: -6px;
+      background: var(--red);
+      color: #fff;
+      font-size: 7px;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 0 0 6px var(--red);
+      line-height: 1.1;
+    }
+    
+    /* 强力 KICK 按钮 */
+    .btn-kick-player {
+      position: absolute;
+      right: -24px;
+      top: 50%;
+      transform: translateY(-50%) scale(0.85);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: var(--red);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s, background 0.15s, transform 0.1s;
+    }
+
+    .mini-seat-body:hover .btn-kick-player {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .btn-kick-player:hover {
+      background: var(--red);
+      color: #fff;
+      box-shadow: 0 0 8px var(--red);
+      transform: translateY(-50%) scale(1.05);
+    }
+    
+    .btn-kick-player:active {
+      transform: translateY(-50%) scale(0.95);
+    }
+
+    /* ══════════════════════════════════════════
+       牌渲染 (Card Base Mini)
+       ══════════════════════════════════════════ */
+    .card {
+      width: 25px;
+      height: 35px;
+      border-radius: 3px;
+      background: #fff;
+      border: 1.2px solid #ccc;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-weight: 800;
+      color: #111;
+      font-size: 8px;
+    }
+
+    .card.red {
+      color: var(--red);
+    }
+    
+    .card.card-back {
+      background:
+        repeating-linear-gradient(
+          45deg,
+          #1e3a8a 0px,
+          #1e3a8a 1.8px,
+          #1e40af 1.8px,
+          #1e40af 4.5px
+        );
+      border-color: #1d4ed8;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .card-rank-tl {
+      position: absolute;
+      top: 1px;
+      left: 1.5px;
+      font-size: 7px;
+      line-height: 1;
+    }
+
+    .card-rank-br {
+      position: absolute;
+      bottom: 1px;
+      right: 1.5px;
+      font-size: 7px;
+      line-height: 1;
+      transform: rotate(180deg);
+    }
+
+    .card-suit-center {
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    /* ══════════════════════════════════════════
+       右侧边栏：在线大厅与旁观者
+       ══════════════════════════════════════════ */
+    .lobby-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .spectator-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .spec-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+
+    .spec-item:hover {
+      background: rgba(255,255,255,0.06);
+    }
+
+    .spec-name-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+    }
+
+    .spec-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 6px var(--blue);
+    }
+
+    .spec-chips {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    .spec-item-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .spec-kick-btn {
+      background: transparent;
+      border: none;
+      color: var(--red);
+      font-size: 14px;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .spec-item:hover .spec-kick-btn {
+      opacity: 1;
+    }
+
+    .spec-kick-btn:hover {
+      transform: scale(1.15);
+    }
+
+    .spec-empty {
+      text-align: center;
+      padding: 24px 0;
+      color: var(--text-dim, #384252);
+      font-size: 12px;
+      border: 1px dashed rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-md);
+    }
+
+    /* ══════════════════════════════════════════
+       底部审计对局历史
+       ══════════════════════════════════════════ */
+    .history-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: rgba(0,0,0,0.15);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background: rgba(255,255,255,0.02);
+      color: var(--text-muted);
+      font-weight: 700;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--text);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255,255,255,0.01);
+    }
+
+    .hist-hand-id {
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .hist-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .hist-pnl-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pnl-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.04);
+      background: rgba(0,0,0,0.2);
+    }
+
+    .pnl-tag.win { color: var(--green); border-color: rgba(63, 185, 80, 0.2); background: rgba(63, 185, 80, 0.05); }
+    .pnl-tag.loss { color: var(--red); border-color: rgba(244, 63, 94, 0.2); background: rgba(244, 63, 94, 0.05); }
+
+    /* ══════════════════════════════════════════
+       Toast 消息弹窗
+       ══════════════════════════════════════════ */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 1000;
+    }
+
+    .toast {
+      background: rgba(22, 28, 45, 0.95);
+      border: 1.5px solid rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-md);
+      padding: 12px 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      backdrop-filter: blur(8px);
+      transform: translateY(20px);
+      opacity: 0;
+      animation: toastFadeIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.15) forwards;
+      min-width: 250px;
+    }
+
+    @keyframes toastFadeIn {
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .toast.success { border-color: var(--green); color: #7dde9c; }
+    .toast.error { border-color: var(--red); color: #ffa4a4; }
+    .toast.info { border-color: var(--gold); color: #ffe082; }
+
+    /* ══════════════════════════════════════════
+       无连接遮罩
+       ══════════════════════════════════════════ */
+    .disconnected-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 15, 25, 0.9);
+      backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .disconnected-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .disconnected-card {
+      background: rgba(22, 28, 45, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      text-align: center;
+      max-width: 400px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .disconnected-card h3 {
+      font-size: 18px;
+      color: var(--red);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-section">
+      <h1>♠ Poker Night</h1>
+      <span class="logo-badge">ADMIN CONTROL</span>
+    </div>
+    <div class="conn-status">
+      <span id="conn-dot" class="status-dot"></span>
+      <span id="conn-text">正在建立管理员连接...</span>
+    </div>
+  </header>
+
+  <div class="container">
+    
+    <!-- 顶部指标看板 -->
+    <div class="metrics-row">
+      <div class="metric-card gold">
+        <div class="metric-icon-wrap">👥</div>
+        <div class="metric-info">
+          <span class="metric-title">全服注册玩家</span>
+          <span class="metric-value" id="stat-total-users">0</span>
+        </div>
+      </div>
+      <div class="metric-card green">
+        <div class="metric-icon-wrap">💰</div>
+        <div class="metric-info">
+          <span class="metric-title">系统流通筹码</span>
+          <span class="metric-value" id="stat-total-chips">0</span>
+        </div>
+      </div>
+      <div class="metric-card blue">
+        <div class="metric-icon-wrap">♠</div>
+        <div class="metric-info">
+          <span class="metric-title">当前席位入座</span>
+          <span class="metric-value" id="stat-seated-count">0 / 6</span>
+        </div>
+      </div>
+      <div class="metric-card red">
+        <div class="metric-icon-wrap">👁</div>
+        <div class="metric-info">
+          <span class="metric-title">当前大厅旁观者</span>
+          <span class="metric-value" id="stat-spectators-count">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主控面板 -->
+    <div class="dashboard-body">
+      
+      <!-- 中左：牌局明牌监视器 -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>实时明牌局势监控屏</h2>
+          <span id="game-status-desc" class="mini-phase-badge">等待开局</span>
+        </div>
+        
+        <div class="table-container">
+          <div class="table-monitor-scene">
+            
+            <!-- 椭圆中心区域 -->
+            <div class="poker-table-mini">
+              <div class="table-center-info">
+                <div class="mini-comm-cards" id="mini-comm-cards">
+                  <!-- JS 动态注入 community card -->
+                  <div class="card card-placeholder"></div>
+                  <div class="card card-placeholder"></div>
+                  <div class="card card-placeholder"></div>
+                  <div class="card card-placeholder"></div>
+                  <div class="card card-placeholder"></div>
+                </div>
+                <div class="mini-pot-row">
+                  <span>奖池</span>
+                  <span id="mini-pot-amount">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 座位 0..5 (对应服务器物理绝对座位) -->
+            <!-- 座位 0 -->
+            <div class="mini-seat empty-seat" id="seat-abs-0" data-seat="0">
+              <div class="mini-hole-cards"></div>
+              <div class="mini-seat-body">
+                <span class="absolute-seat-badge">0</span>
+                <span class="mini-dealer-btn" hidden>D</span>
+                <div class="mini-avatar">?</div>
+                <div class="mini-meta">
+                  <span class="mini-name">空座</span>
+                  <span class="mini-chips">–</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 座位 1 -->
+            <div class="mini-seat empty-seat" id="seat-abs-1" data-seat="1">
+              <div class="mini-hole-cards"></div>
+              <div class="mini-seat-body">
+                <span class="absolute-seat-badge">1</span>
+                <span class="mini-dealer-btn" hidden>D</span>
+                <div class="mini-avatar">?</div>
+                <div class="mini-meta">
+                  <span class="mini-name">空座</span>
+                  <span class="mini-chips">–</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 座位 2 -->
+            <div class="mini-seat empty-seat" id="seat-abs-2" data-seat="2">
+              <div class="mini-hole-cards"></div>
+              <div class="mini-seat-body">
+                <span class="absolute-seat-badge">2</span>
+                <span class="mini-dealer-btn" hidden>D</span>
+                <div class="mini-avatar">?</div>
+                <div class="mini-meta">
+                  <span class="mini-name">空座</span>
+                  <span class="mini-chips">–</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 座位 3 -->
+            <div class="mini-seat empty-seat" id="seat-abs-3" data-seat="3">
+              <div class="mini-hole-cards"></div>
+              <div class="mini-seat-body">
+                <span class="absolute-seat-badge">3</span>
+                <span class="mini-dealer-btn" hidden>D</span>
+                <div class="mini-avatar">?</div>
+                <div class="mini-meta">
+                  <span class="mini-name">空座</span>
+                  <span class="mini-chips">–</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 座位 4 -->
+            <div class="mini-seat empty-seat" id="seat-abs-4" data-seat="4">
+              <div class="mini-hole-cards"></div>
+              <div class="mini-seat-body">
+                <span class="absolute-seat-badge">4</span>
+                <span class="mini-dealer-btn" hidden>D</span>
+                <div class="mini-avatar">?</div>
+                <div class="mini-meta">
+                  <span class="mini-name">空座</span>
+                  <span class="mini-chips">–</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 座位 5 -->
+            <div class="mini-seat empty-seat" id="seat-abs-5" data-seat="5">
+              <div class="mini-hole-cards"></div>
+              <div class="mini-seat-body">
+                <span class="absolute-seat-badge">5</span>
+                <span class="mini-dealer-btn" hidden>D</span>
+                <div class="mini-avatar">?</div>
+                <div class="mini-meta">
+                  <span class="mini-name">空座</span>
+                  <span class="mini-chips">–</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- 中右：在线用户与旁观列表 -->
+      <div class="lobby-sidebar">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>大厅旁观者列表</h2>
+          </div>
+          <div class="spectator-list" id="spectator-list">
+            <!-- 动态生成 -->
+            <div class="spec-empty">当前大厅无旁观者</div>
+          </div>
+        </div>
+
+        <!-- 服务器实时终端控制台日志 -->
+        <div class="panel" style="flex: 1; display: flex; flex-direction: column; min-height: 280px; box-shadow: 0 15px 35px rgba(0,0,0,0.5);">
+          <div class="panel-header">
+            <h2>服务器实时控制台日志</h2>
+            <button onclick="clearConsoleLogs()" style="background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; color: var(--text-muted); cursor: pointer; font-size: 10px; font-weight: 700; transition: background 0.15s, color 0.15s;" onmouseover="this.style.color='#f8fafc'; this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.color='var(--text-muted)'; this.style.background='rgba(255,255,255,0.04)'">清空</button>
+          </div>
+          <div id="admin-console-log" style="flex: 1; background: #070b19; border-radius: var(--radius-md); border: 1.5px solid rgba(255,255,255,0.06); padding: 12px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #a3e635; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; height: 215px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);">
+            <div style="color: #64748b; font-style: italic;">等待接收控制台系统日志流...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 底部：最近审计手牌日志 -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>数据库最近 10 手手牌审计日志</h2>
+      </div>
+      <div class="history-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 120px;">局编号 (Hand ID)</th>
+              <th style="width: 180px;">对局结束时间</th>
+              <th>玩家盈亏分布结果 (绝对座位号下)</th>
+            </tr>
+          </thead>
+          <tbody id="history-log-rows">
+            <tr>
+              <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 30px 0;">暂无审计日志数据</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 断连阻断蒙层 -->
+  <div id="disconnect-overlay" class="disconnected-overlay active">
+    <div class="disconnected-card">
+      <div class="logo-badge">ADMIN WARNING</div>
+      <h3>与管理员数据通道断开</h3>
+      <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+        无法连接至服务器 `/admin` 数据端口。服务器可能正在重启或网络断线，系统正尝试在后台自动重连...
+      </p>
+    </div>
+  </div>
+
+  <!-- Toast 容器 -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- 引用本地 socket.io 服务端自带的客户端包 -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // ══════════════════════════════════════════
+    // 全局状态与网络初始化
+    // ══════════════════════════════════════════
+    let socket = null;
+
+    // Toast 浮窗提示
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      
+      let icon = 'ℹ️';
+      if (type === 'success') icon = '✅';
+      if (type === 'error') icon = '🚨';
+      
+      toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'none';
+        toast.offsetHeight; // reflow
+        toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px)';
+        setTimeout(() => toast.remove(), 400);
+      }, 3500);
+    }
+
+    // 终端日志辅助方法
+    function appendConsoleLog(log) {
+      const consoleEl = document.getElementById('admin-console-log');
+      if (!consoleEl) return;
+
+      // 如果有默认占位文字，先清空
+      if (consoleEl.children.length === 1 && consoleEl.children[0].style.fontStyle === 'italic') {
+        consoleEl.innerHTML = '';
+      }
+
+      const line = document.createElement('div');
+      line.style.lineHeight = '1.5';
+      line.style.wordBreak = 'break-all';
+      
+      const isError = log.type === 'error';
+      line.style.color = isError ? '#f87171' : '#f8fafc'; // error 用红色，info 用浅灰色/白色
+      
+      const timeSpan = `<span style="color: #64748b; margin-right: 6px; font-weight: 600;">[${log.timestamp}]</span>`;
+      const typeSpan = `<span style="color: ${isError ? '#f87171' : 'var(--gold)'}; margin-right: 6px; font-weight: 800;">[${log.type.toUpperCase()}]</span>`;
+      
+      line.innerHTML = `${timeSpan}${typeSpan}${escapeHTML(log.message)}`;
+      consoleEl.appendChild(line);
+
+      // 控制 DOM 元素数量，防止长时间运行溢出卡顿
+      while (consoleEl.children.length > 250) {
+        consoleEl.children[0].remove();
+      }
+
+      // 滚动到底部
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function clearConsoleLogs() {
+      const consoleEl = document.getElementById('admin-console-log');
+      if (consoleEl) {
+        consoleEl.innerHTML = '<div style="color: #64748b; font-style: italic;">控制台日志已手动清空。</div>';
+      }
+    }
+
+    // 建立连接
+    function connectAdminSocket() {
+      // 独立命名空间连接
+      socket = io('/admin');
+
+      socket.on('connect', () => {
+        console.log('[Admin] 已成功连接至管理通道:', socket.id);
+        document.getElementById('disconnect-overlay').classList.remove('active');
+        
+        const dot = document.getElementById('conn-dot');
+        const text = document.getElementById('conn-text');
+        dot.className = 'status-dot connected';
+        text.textContent = '已连接到管理数据接口 (实时)';
+        showToast('已成功接入德州扑克实时明牌管理中心', 'success');
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.warn('[Admin] 连接断开:', reason);
+        document.getElementById('disconnect-overlay').classList.add('active');
+        
+        const dot = document.getElementById('conn-dot');
+        const text = document.getElementById('conn-text');
+        dot.className = 'status-dot';
+        text.textContent = '与管理接口断开连接';
+        showToast('管理数据通道已断开: ' + reason, 'error');
+      });
+
+      // 实时全量明牌状态推送
+      socket.on('admin_game_state', (state) => {
+        console.log('[Admin] 收到实时明牌数据快照:', state);
+        renderAdminDashboard(state);
+      });
+
+      // 接收系统日志历史
+      socket.on('admin_log_history', (history) => {
+        const consoleEl = document.getElementById('admin-console-log');
+        if (consoleEl) consoleEl.innerHTML = '';
+        if (Array.isArray(history)) {
+          history.forEach(appendConsoleLog);
+        }
+      });
+
+      // 接收实时推送单条系统日志
+      socket.on('admin_log', (log) => {
+        appendConsoleLog(log);
+      });
+
+      // 踢人操作反馈
+      socket.on('admin_action_result', (res) => {
+        if (res.action === 'kick') {
+          if (res.success) {
+            showToast(res.message, 'success');
+          } else {
+            showToast(res.message, 'error');
+          }
+        }
+      });
+    }
+
+    // ══════════════════════════════════════════
+    // UI 数据动态渲染层
+    // ══════════════════════════════════════════
+    function renderAdminDashboard(data) {
+      // 1. 顶部基础指标更新
+      document.getElementById('stat-total-users').textContent = data.systemStats.totalUsers;
+      document.getElementById('stat-total-chips').textContent = data.systemStats.totalChips;
+      document.getElementById('stat-seated-count').textContent = `${data.onlinePlayers.length} / 6`;
+      document.getElementById('stat-spectators-count').textContent = data.spectators.length;
+
+      // 2. 牌桌公共区更新
+      const commContainer = document.getElementById('mini-comm-cards');
+      const potAmountEl = document.getElementById('mini-pot-amount');
+      const statusDescEl = document.getElementById('game-status-desc');
+      
+      commContainer.innerHTML = '';
+      
+      const phaseLabels = {
+        preflop: '翻牌前下注圈',
+        flop: '翻牌圈',
+        turn: '转牌圈',
+        river: '河牌圈',
+        showdown: '摊牌比牌结算',
+        ended: '局终结算结束'
+      };
+
+      if (data.gameState) {
+        // 更新奖池与状态字样
+        potAmountEl.textContent = data.gameState.pot;
+        statusDescEl.textContent = `${phaseLabels[data.gameState.phase] || data.gameState.phase} | 局号: ${data.gameState.handId}`;
+        
+        // 渲染公共牌
+        for (let i = 0; i < 5; i++) {
+          const card = data.gameState.communityCards[i];
+          if (card) {
+            commContainer.appendChild(createCardElement(card));
+          } else {
+            commContainer.appendChild(createCardPlaceholder());
+          }
+        }
+      } else {
+        potAmountEl.textContent = '0';
+        statusDescEl.textContent = '等待对局自动开始...';
+        for (let i = 0; i < 5; i++) {
+          commContainer.appendChild(createCardPlaceholder());
+        }
+      }
+
+      // 3. 渲染 6 个物理座位 (0..5)
+      for (let i = 0; i < 6; i++) {
+        renderSeat(i, data.gameState, data.onlinePlayers);
+      }
+
+      // 4. 渲染旁观者列表
+      const specContainer = document.getElementById('spectator-list');
+      specContainer.innerHTML = '';
+      if (data.spectators.length === 0) {
+        specContainer.innerHTML = '<div class="spec-empty">当前大厅无旁观者</div>';
+      } else {
+        data.spectators.forEach(spec => {
+          const item = document.createElement('div');
+          item.className = 'spec-item';
+          
+          item.innerHTML = `
+            <div class="spec-name-wrap">
+              <span class="spec-dot"></span>
+              <span>${escapeHTML(spec.username)}</span>
+            </div>
+            <div class="spec-item-right">
+              <span class="spec-chips">${spec.chips} 筹码</span>
+              <button class="spec-kick-btn" onclick="triggerKick('${escapeHTML(spec.username)}')" title="踢出大厅">×</button>
+            </div>
+          `;
+          specContainer.appendChild(item);
+        });
+      }
+
+      // 5. 渲染底部 SQLite 审计日志
+      const historyContainer = document.getElementById('history-log-rows');
+      historyContainer.innerHTML = '';
+      if (data.recentHistory.length === 0) {
+        historyContainer.innerHTML = `
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 30px 0;">暂无审计对局历史数据</td>
+          </tr>
+        `;
+      } else {
+        data.recentHistory.forEach(row => {
+          const tr = document.createElement('tr');
+          
+          // 对盈亏分布数据进行美化标签渲染
+          const pnlTagsHtml = row.summary.split(',').map(tag => {
+            const isWin = tag.includes('+');
+            const cleanTag = escapeHTML(tag);
+            return `<span class="pnl-tag ${isWin ? 'win' : 'loss'}">${cleanTag}</span>`;
+          }).join(' ');
+
+          tr.innerHTML = `
+            <td><span class="hist-hand-id">${row.hand_id}</span></td>
+            <td><span class="hist-time">${row.ended_at}</span></td>
+            <td><div class="hist-pnl-tags">${pnlTagsHtml}</div></td>
+          `;
+          historyContainer.appendChild(tr);
+        });
+      }
+    }
+
+    // 绘制单个座位
+    function renderSeat(seatId, gameState, onlinePlayers) {
+      const seatEl = document.getElementById(`seat-abs-${seatId}`);
+      if (!seatEl) return;
+
+      // 在 onlinePlayers 中查看该绝对座位上是否有物理连接玩家
+      const onlineUser = onlinePlayers.find(op => op.seatId === seatId);
+      
+      // 在引擎 gameState 中查看该座位是否是活跃游戏玩家
+      const enginePlayer = gameState ? gameState.players.find(p => p.seatId === seatId) : null;
+
+      // 重置属性与状态
+      seatEl.className = 'mini-seat';
+      
+      const cardsContainer = seatEl.querySelector('.mini-hole-cards');
+      const avatarEl = seatEl.querySelector('.mini-avatar');
+      const nameEl = seatEl.querySelector('.mini-name');
+      const chipsEl = seatEl.querySelector('.mini-chips');
+      const dealerBtn = seatEl.querySelector('.mini-dealer-btn');
+      
+      // 移除可能存在的 Kick 按钮、已注角标、离线角标
+      const oldKick = seatEl.querySelector('.btn-kick-player');
+      if (oldKick) oldKick.remove();
+      const oldBet = seatEl.querySelector('.mini-seat-bet-val');
+      if (oldBet) oldBet.remove();
+      const oldOffline = seatEl.querySelector('.mini-offline-badge');
+      if (oldOffline) oldOffline.remove();
+
+      cardsContainer.innerHTML = '';
+      dealerBtn.hidden = true;
+
+      // 场景 A：物理座位为空
+      if (!onlineUser) {
+        seatEl.classList.add('empty-seat');
+        avatarEl.textContent = '?';
+        nameEl.textContent = '空座';
+        chipsEl.textContent = '–';
+        return;
+      }
+
+      // 场景 B：有物理连接玩家
+      avatarEl.textContent = onlineUser.username.charAt(0).toUpperCase();
+      nameEl.textContent = escapeHTML(onlineUser.username);
+      chipsEl.textContent = `${onlineUser.chips} 筹码`;
+
+      // 庄家按钮判定
+      if (enginePlayer && enginePlayer.isDealer) {
+        dealerBtn.hidden = false;
+      }
+
+      // 行动状态判定 (active / folded / allin)
+      if (enginePlayer) {
+        if (enginePlayer.status === 'folded') {
+          seatEl.classList.add('folded');
+        } else if (enginePlayer.status === 'allin') {
+          seatEl.classList.add('allin');
+        }
+        
+        if (gameState && gameState.currentSeat === seatId) {
+          seatEl.classList.add('active-turn');
+        }
+
+        // 下注角标
+        if (enginePlayer.bet > 0) {
+          const betVal = document.createElement('span');
+          betVal.className = 'mini-seat-bet-val';
+          betVal.textContent = enginePlayer.bet;
+          seatEl.appendChild(betVal);
+        }
+
+        // 明牌渲染底牌（全员底牌直接展示！）
+        if (enginePlayer.holeCards && enginePlayer.holeCards.length === 2) {
+          cardsContainer.appendChild(createCardElement(enginePlayer.holeCards[0]));
+          cardsContainer.appendChild(createCardElement(enginePlayer.holeCards[1]));
+        }
+      } else {
+        // 当前席位玩家在 onlinePlayers 但没有被编入 enginePlayer (说明在局间空档或在等候新局开始)
+        chipsEl.textContent = `${onlineUser.chips} (未加入本局)`;
+      }
+
+      // 离线角标判定
+      if (onlineUser.isOffline) {
+        const offlineBadge = document.createElement('span');
+        offlineBadge.className = 'mini-offline-badge';
+        offlineBadge.textContent = 'OFFLINE';
+        seatEl.appendChild(offlineBadge);
+      }
+
+      // 挂载 Kick 按钮
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'btn-kick-player';
+      kickBtn.type = 'button';
+      kickBtn.innerHTML = '×';
+      kickBtn.title = `强行踢出玩家 ${onlineUser.username}`;
+      kickBtn.onclick = () => triggerKick(onlineUser.username);
+      
+      const body = seatEl.querySelector('.mini-seat-body');
+      body.appendChild(kickBtn);
+    }
+
+    // ══════════════════════════════════════════
+    // 管理员主动操作系统
+    // ══════════════════════════════════════════
+    function triggerKick(username) {
+      if (confirm(`警告：您确定要强行将玩家 【${username}】 踢下线并清除其座位吗？\n该操作会强制中断其连接并可能影响其当前手牌！`)) {
+        console.log('[Admin] 发送踢人指令:', username);
+        socket.emit('admin_kick', { username });
+      }
+    }
+
+    // ══════════════════════════════════════════
+    // HTML 生成小工具
+    // ══════════════════════════════════════════
+    function createCardElement(card) {
+      const el = document.createElement('div');
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      el.className = `card ${isRed ? 'red' : ''}`;
+      
+      el.innerHTML = `
+        <span class="card-rank-tl">${card.rank}</span>
+        <span class="card-suit-center">${card.suit}</span>
+        <span class="card-rank-br">${card.rank}</span>
+      `;
+      return el;
+    }
+
+    function createCardPlaceholder() {
+      const el = document.createElement('div');
+      el.className = 'card card-back';
+      return el;
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    // 启动数据接口连接
+    window.onload = connectAdminSocket;
+  </script>
+</body>
+</html>
