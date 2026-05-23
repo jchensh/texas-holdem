@@ -589,7 +589,25 @@ index.html
 
 ---
 
-**当前主目标提醒**：下一阶段最重要的主线是完成 V1 的谷歌云香港 VM 部署上线工作（PM2 守护、Nginx WebSocket 反代、HTTPS/安全组、生产环境变量、SQLite 数据与备份、线上 smoke test）。后续前端框架与游戏渲染层升级应在 V1 稳定可玩之后再进入实施。
+## Step 10 — 谷歌云香港 VM 生产部署与 HTTP 纯 IP 访问 Session Cookie 修复（2026-05-24，commit 本次提交）
+
+**目标**：在谷歌云香港 VM 实例（GCP CE `e2-small`）上完成 Poker Night 游戏服务端的生产部署，建立自动进程守护与 Nginx 反向代理，并修复因纯 IP HTTP 协议访问导致的 Session Cookie 被浏览器丢弃、无法登录与握手失败的致命 Bug。
+
+**产出**：
+- `server/index.js` — 将 `cookie-session` 里的 `secure` 限制从 `config.NODE_ENV === 'production'` 调整为 `false`，放行 HTTP 协议下的 Cookie 传输，完美打通公网 IP 裸跑测试。
+- `DEPLOY.md` — 提供了极其详尽的谷歌云（GCP CE）生产环境部署与运维手册，包含系统依赖、PM2、Nginx、数据备份、SSL证书配置说明。
+- `ecosystem.config.js` — PM2 进程守护配置文件，为多核环境与自动重启保驾护航。
+- `poker-night.nginx.conf` — 针对域名 SSL 的 Nginx 配置模板（带 HTTPS 强转和 WebSocket 升级）。
+- `scripts/deploy.sh` — 全自动一键编译、安装生产依赖、热重启与 PM2 状态保存脚本。
+- **临时 IP Nginx 代理配置文件（自动生成）** — 云端自动生成 `/etc/nginx/sites-available/poker-night-ip` 配置文件，实现纯公网 IP 下的 Nginx 反代与 WebSocket 升级。
+
+**关键决策与 Bug 排障记录**：
+- **Session Cookie HTTPS 限制排障（P0 级大坑）**：由于 `.env` 中 `NODE_ENV` 设为 `production`，`cookie-session` 默认将 `secure` 设为 `true`（限定 HTTPS）。在使用公网 IP (`http://34.92.181.190`) 访问时，浏览器因为普通 HTTP 协议直接无情丢弃了 Set-Cookie，导致后续的所有 `/api/me` 和 Socket.IO 握手都遭遇 `未登录` 拦截。通过将 `secure` 设为 `false` 完美解决了此问题。
+- **未推送代码排障**：在部署前期，发现由于本地 `next` 分支领先远端 `origin/next` 2 个 commit，导致云服务器拉取不到 `deploy.sh`。在本地手动执行 `git push origin next` 后，云端 `git pull` 同步成功。
+- **一键开机自启**：配置了 `systemd` 引导的 PM2 守护服务 `pm2-cqy95106.service` 并通过 `pm2 save` 冻结对局进程，防机房断电与宕机。
+
+**测试验证**：
+- 云端 `git pull origin next` 后运行 `./scripts/deploy.sh` 一键部署，`pm2` 与 `nginx` 双绿灯状态，浏览器通过公网 IP 完美流畅开玩，握手正常，状态秒级接通！
 
 ---
 
@@ -614,7 +632,7 @@ index.html
 | 9.6 | GitHub 远端仓库初始化与 GitHub CLI 配置 | ✅ commit 本次提交 |
 | 9.7 | 玩家离线/重连全局强通知弹窗（补齐 Step 8 遗留） | ✅ commit 本次提交 |
 | 9.8 | 未来前端与后端架构路线文档 `FutureRoadmap.md` | ✅ commit 本次提交 |
-| 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
+| 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ✅ commit 本次提交 |
 
 ---
 
