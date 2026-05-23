@@ -498,6 +498,52 @@ index.html
 
 ---
 
+## Step 9.6 — GitHub 远端仓库初始化与 GitHub CLI 配置（2026-05-24，commit 本次提交）
+
+**目标**：把本地 Poker Night 项目正式放到 GitHub 私有仓库，并让本机命令行 `gh` 可用于后续创建 PR、查看 Actions、管理远端仓库。
+
+**产出**：
+- GitHub 私有仓库：`jchensh/texas-holdem`
+  - 仓库地址：`https://github.com/jchensh/texas-holdem`
+  - 默认分支：`main`
+  - 可见性：Private
+- 本地 Git remote：
+  - `origin` → `https://github.com/jchensh/texas-holdem.git`
+- 已推送远端分支：
+  - `main`
+  - `next`
+  - `codex/work`
+  - `claude/work`
+  - `antigravity/work`
+- GitHub CLI：
+  - 安装位置：`C:/Users/user/AppData/Local/Programs/GitHub CLI/bin/gh.exe`
+  - 已加入用户级 PATH，新开 PowerShell 后可直接运行 `gh`
+  - 已登录账号：`jchensh`
+  - Git 协议：`https`
+  - Token scopes：`gist`、`read:org`、`repo`、`workflow`
+
+**关键决策**：
+- **仓库先设为私有**。当前是朋友间联机娱乐项目，包含部署与账号体系雏形；V1 稳定前先保留私有仓库更稳妥。
+- **保留 HTTPS Git 协议**。`gh auth login` 已配置 Git operations protocol 为 `https`，不额外引入 SSH key 管理复杂度。
+- **把固定协作分支一起推上 GitHub**。这让远端仓库与 Step 9.5 的多 agent 分支策略保持一致，后续可以直接从 `next` 派生任务分支。
+- **不上传本地生成物和敏感文件**。`.env`、SQLite 数据库、`node_modules/`、`GIT_HISTORY_CHANGELOG.md`、agent 本地目录均由 `.gitignore` 排除。
+
+**操作记录**：
+- 使用 GitHub CLI 创建私有仓库 `jchensh/texas-holdem`。
+- 将本地 `origin` 绑定到新仓库。
+- 推送 `main` 并设置 upstream。
+- 推送 `next`、`codex/work`、`claude/work`、`antigravity/work` 并设置 upstream。
+- 将 portable `gh` 从 `C:/tmp/ghcli` 整理到用户程序目录，并写入用户级 PATH。
+
+**验证记录**：
+- `gh auth status` 在新 PowerShell 中确认已登录 `jchensh`。
+- `gh` 在新 PowerShell 中可直接显示帮助菜单，说明 PATH 生效。
+- `git remote -v` 显示 `origin` 指向 `https://github.com/jchensh/texas-holdem.git`。
+- `git branch -vv` 显示 `main`、`next`、`codex/work`、`claude/work`、`antigravity/work` 均已追踪对应远端分支。
+- 引擎单元测试 `node --test server/engine/*.test.js`：53/53 通过。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -516,6 +562,7 @@ index.html
 | 9.3 | 牌局显示和交互优化需求（字号加大、位置 badges 样式、手牌 Show/Muck、5+2 结算动画） + 致命 JavaScript crash Bug 修复 | ✅ commit `8986e8a` |
 | 9.4 | 核心游戏引擎致命漏洞修复、皇家同花顺强化与 Option A 高级扑克规则集成 | ✅ commit `5d31204` |
 | 9.5 | 多 Agent Git 分支与 worktree 协作体系 | ✅ commit 本次提交 |
+| 9.6 | GitHub 远端仓库初始化与 GitHub CLI 配置 | ✅ commit 本次提交 |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
