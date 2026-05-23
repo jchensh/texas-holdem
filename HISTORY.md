@@ -544,6 +544,31 @@ index.html
 
 ---
 
+## Step 9.7 — 玩家离线/重连全局强通知弹窗（2026-05-24，commit 本次提交）
+
+**目标**：补齐 Step 8 遗留的「离线无弹窗/全局强通知」问题——牌局中玩家彻底掉线时，桌上其余玩家除了席位置灰 + 霓虹角标外，还应收到一个屏幕中央的「呼脸」级别全局弹窗；该玩家重连回桌时再弹一条对称的「回归」提示。
+
+**产出**：
+- `server/table.js` —
+  - `handleDisconnect`：玩家彻底断开（`socketIds.size === 0`）且手牌进行中时，在原有 `broadcastGameState()` 置灰之后，追加广播一条 `global_notification`（`type: 'offline'`）。掉线玩家此刻已无 socket，`broadcast` 只会发给桌上其余在线玩家。
+  - `sitPlayer` 物理座位重连分支：在 `socketIds.add()` **之前**捕获 `wasOffline`，仅当该玩家此前确实彻底离线、且手牌进行中时才广播 `global_notification`（`type: 'online'`），避免多 Tab 重复连接误弹。
+- `public/index.html` — 给 `#global-alert-overlay` 内写死的图标 `<div class="global-alert-icon">` 加上 `id="global-alert-icon"`，使其图标可按通知类型动态切换。
+- `public/js/app.js` — `showGlobalNotification` 重构为「类型 → 标题/图标/音效」映射表，新增 `offline`（📡 玩家掉线警示 / ⚠️ / fold 音效）与 `online`（🟢 玩家回归牌桌 / 🔌 / check 音效）两种类型，保留 `buyin` 与默认系统广播；5 秒自动关闭逻辑对所有类型通用。
+- `scripts/test-offline-notify.js`（新）— 离线/重连全局通知端到端集成测试。
+
+**关键决策**：
+- **复用现有弹窗机制**：直接复用 Step 9.1 已建好的 `global_notification` → `showGlobalNotification` → `#global-alert-overlay` 全屏中央模态链路，不新增前端组件。弹窗仍为全屏阻塞模态（与管理员充值 buyin 同款），已与用户确认接受此形式。
+- **重连守卫**：`wasOffline` 必须在 `socketIds.add()` 之前判定，否则永远判不出「曾经离线」；并以此过滤掉多 Tab 重复连接的误弹。
+- **范围**：本次只做离线/重连弹窗；Step 8 的另一条遗留「单人尬等死局」按用户要求暂不处理。
+
+**测试验证**：
+- `npm test`：引擎/单元 53/53 通过（本次未改引擎，无回归）。注：`node --test` 会一并发现 `scripts/test-*.js`，这些需要 live server 的 E2E 脚本在 `npm test` 下报红属预期，应手动起 server 单独运行。
+- `node scripts/test-offline-notify.js`（live server）：断言掉线/重连两条通知均被桌上其余玩家收到、类型与文案正确，全部通过。
+- `node scripts/test-step6-e2e.js` / `test-step7-history.js`（fresh server 各自单跑）：核心对局流与历史接口无回归通过。
+- 浏览器预览：手动渲染 offline / online 两种弹窗，标题、图标、加粗文案、布局均正确。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -563,6 +588,7 @@ index.html
 | 9.4 | 核心游戏引擎致命漏洞修复、皇家同花顺强化与 Option A 高级扑克规则集成 | ✅ commit `5d31204` |
 | 9.5 | 多 Agent Git 分支与 worktree 协作体系 | ✅ commit 本次提交 |
 | 9.6 | GitHub 远端仓库初始化与 GitHub CLI 配置 | ✅ commit 本次提交 |
+| 9.7 | 玩家离线/重连全局强通知弹窗（补齐 Step 8 遗留） | ✅ commit 本次提交 |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---

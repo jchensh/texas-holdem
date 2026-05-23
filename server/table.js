@@ -60,14 +60,24 @@ class Table {
     // 1. 检查该玩家是否已经坐下 (物理座位重连)
     let seatIndex = this.seats.findIndex(s => s && s.userId === userId);
     if (seatIndex !== -1) {
+      // 在 add 之前捕获掉线状态，否则永远判不出“曾经离线” → 用于决定是否弹“回归”通知
+      const wasOffline = this.seats[seatIndex].socketIds.size === 0;
       this.seats[seatIndex].socketIds.add(socket.id);
       socket.data.seatId = seatIndex;
       console.log(`[Table] 玩家 ${user.username} 重新绑定至座位 ${seatIndex} (${socket.id})`);
       this.syncLobbyState();
-      
+
       // 如果游戏正在进行，立即广播最新的游戏状态（使所有人屏幕上的置灰和离线状态立即解除）
       if (this.game) {
         this.broadcastGameState();
+        // 全局强通知弹窗：仅当该玩家此前确实彻底离线、且手牌进行中时才弹“回归”，避免多 Tab 重复连接误弹
+        if (wasOffline && this.game.phase !== 'ended') {
+          this.broadcast('global_notification', {
+            type: 'online',
+            username: this.seats[seatIndex].username,
+            message: `玩家 <strong>[${this.seats[seatIndex].username}]</strong> 已重新连线，回到了牌桌！`
+          });
+        }
         // 如果刚好是他的回合，重新触发 startActionTimer 恢复 full 30s 倒计时并补发 your_turn
         if (this.game.currentSeat === seatIndex) {
           console.log(`[Table] 玩家 ${user.username} 在其回合内重连，恢复 30s 倒计时`);
@@ -154,6 +164,12 @@ class Table {
             console.log(`[Table] 玩家 ${seat.username} 彻底断开，但手牌进行中，保留席位托管`);
             // 立即广播当前游戏状态以使对手屏幕能立刻看到“离线”置灰与霓虹标签
             this.broadcastGameState();
+            // 全局强通知弹窗：掉线玩家此刻已无 socket，broadcast 只发给桌上其余在线玩家
+            this.broadcast('global_notification', {
+              type: 'offline',
+              username: seat.username,
+              message: `玩家 <strong>[${seat.username}]</strong> 已掉线，暂时离开了牌桌。<br>系统将在其行动超时后自动为其托管（过牌 / 弃牌）。`
+            });
             // 如果刚好轮到他的回合，立即加速其思考倒计时到 2 秒超速超时
             if (this.game.currentSeat === seatIndex) {
               console.log(`[Table] 玩家 ${seat.username} 在其回合断开，加速倒计时至 2 秒`);

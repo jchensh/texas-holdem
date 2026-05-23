@@ -476,23 +476,28 @@ const App = {
 
   showGlobalNotification(data) {
     console.log('[App] 收到全局广播通知:', data);
-    
-    // 如果是充值事件，播放音效（用已有的筹码音效）
-    if (data.type === 'buyin') {
-      AudioEngine.playSFX('chip');
+
+    // 各类型的标题 / 图标 / 音效映射；未知类型回退到默认系统广播
+    const presets = {
+      buyin:   { title: '💰 筹码充值广播', icon: '💰', sfx: 'chip' },
+      offline: { title: '📡 玩家掉线警示', icon: '⚠️', sfx: 'fold' },
+      online:  { title: '🟢 玩家回归牌桌', icon: '🔌', sfx: 'check' },
+    };
+    const preset = presets[data.type] || { title: '📢 系统广播', icon: '📢', sfx: null };
+
+    if (preset.sfx) {
+      AudioEngine.playSFX(preset.sfx);
     }
-    
+
     const overlay = document.getElementById('global-alert-overlay');
     const contentEl = document.getElementById('global-alert-content');
     const titleEl = document.getElementById('global-alert-title');
-    
+    const iconEl = document.getElementById('global-alert-icon');
+
     if (overlay && contentEl) {
-      if (titleEl && data.type === 'buyin') {
-        titleEl.textContent = '💰 筹码充值广播';
-      } else if (titleEl) {
-        titleEl.textContent = '📢 系统广播';
-      }
-      
+      if (titleEl) titleEl.textContent = preset.title;
+      if (iconEl) iconEl.textContent = preset.icon;
+
       contentEl.innerHTML = data.message;
       overlay.classList.add('active');
       
