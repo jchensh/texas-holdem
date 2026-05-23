@@ -480,11 +480,22 @@ class Table {
     // 持续广播最终的 showdown 摊牌状态，以便前端可以顺利翻开对手手牌
     this.broadcastGameState();
 
-    // 4. 重置本手实例，延迟 6 秒后启动下一手
+    // 4. 保存结算手牌数据，用于亮牌功能
+    this._lastHandPlayers = this.game.players.map(p => ({
+      seatId: p.seatId,
+      username: p.username,
+      holeCards: p.holeCards ? [...p.holeCards] : [],
+      status: p.status
+    }));
+    this._shownHands = new Map();
+
+    // 5. 重置本手实例，延迟 8 秒后启动下一手
     this.game = null;
     this.notifyAdmin();
     setTimeout(() => {
       // 彻底断线的玩家若在此刻不在手牌里，移除其座位
+      this._lastHandPlayers = null;
+      this._shownHands = null;
       this.cleanupOfflinePlayers();
       this.syncLobbyState();
       this.checkAutoStart();
@@ -691,6 +702,42 @@ class Table {
     for (const socket of this.getAllSockets()) {
       this.sendToSocket(socket, event, data);
     }
+  }
+
+  /**
+   * 处理玩家亮牌请求（结算期间）
+   */
+  handleShowHand(socket) {
+    if (!this._lastHandPlayers || this._lastHandPlayers.length === 0) {
+      socket.emit('error', { message: '当前没有可以亮牌的牌局' });
+      return;
+    }
+    const seatId = socket.data.seatId;
+    if (seatId === null || seatId === undefined) return;
+
+    // 检查是否已经亮过
+    if (this._shownHands && this._shownHands.has(seatId)) {
+      return;
+    }
+
+    const playerData = this._lastHandPlayers.find(p => p.seatId === seatId);
+    if (!playerData || !playerData.holeCards || playerData.holeCards.length === 0) {
+      socket.emit('error', { message: '没有可以亮的手牌' });
+      return;
+    }
+
+    // 记录已亮牌
+    if (!this._shownHands) this._shownHands = new Map();
+    this._shownHands.set(seatId, true);
+
+    console.log(`[Table] 玩家 ${playerData.username} 选择亮牌 (座位 ${seatId})`);
+
+    // 广播给所有玩家（含座位翻译）
+    this.broadcast('player_show_hand', {
+      seatId: seatId,
+      holeCards: playerData.holeCards,
+      username: playerData.username
+    });
   }
 
   kickPlayer(username) {

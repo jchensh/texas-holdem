@@ -248,11 +248,11 @@ input  { font-family: inherit; outline: none; }
   border-radius: 20px;
   padding: 4px 14px;
 }
-.pot-label { font-size: 11px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: 1px; }
-.pot-amount { font-size: 16px; font-weight: 700; color: var(--gold); }
+.pot-label { font-size: 13px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: 1px; }
+.pot-amount { font-size: 20px; font-weight: 700; color: var(--gold); }
 
 .game-status-text {
-  font-size: 12px;
+  font-size: 14px;
   color: rgba(255,255,255,.45);
   letter-spacing: .5px;
 }
@@ -305,39 +305,40 @@ input  { font-family: inherit; outline: none; }
   transition: border-color .2s, box-shadow .2s;
 }
 .seat-avatar.lg { width: 42px; height: 42px; }
-.avatar-initials { font-size: 13px; font-weight: 700; color: var(--gold); }
+.avatar-initials { font-size: 15px; font-weight: 700; color: var(--gold); }
 
-.dealer-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--gold);
-  color: #1a1000;
-  font-size: 9px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* 位置标签 (D / SB / BB / UTG) */
+.pos-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+  line-height: 1.4;
+  letter-spacing: 0.3px;
 }
+.pos-badge.d   { background: rgba(201,168,76,0.25); color: var(--gold-light); border: 1px solid rgba(201,168,76,0.4); }
+.pos-badge.sb  { background: rgba(88,166,255,0.2);  color: var(--blue);       border: 1px solid rgba(88,166,255,0.35); }
+.pos-badge.bb  { background: rgba(168,85,247,0.2);  color: #c084fc;           border: 1px solid rgba(168,85,247,0.35); }
+.pos-badge.utg { background: rgba(139,148,158,0.2); color: var(--text-muted); border: 1px solid rgba(139,148,158,0.3); }
 
 .seat-meta { display: flex; flex-direction: column; gap: 2px; }
-.seat-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
-.seat-chips-val { font-size: 11px; color: var(--text-muted); }
+.seat-name { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.seat-chips-val { font-size: 13px; color: var(--text-muted); }
 
 .seat-bet-badge {
   background: rgba(201,168,76,.15);
   border: 1px solid rgba(201,168,76,.35);
   border-radius: 12px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--gold);
 }
 
 .seat-action-label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--green);
   min-height: 16px;
@@ -817,7 +818,7 @@ input  { font-family: inherit; outline: none; }
 }
 
 .hand-type-badge .badge-text {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
   letter-spacing: 0.5px;
@@ -833,7 +834,7 @@ input  { font-family: inherit; outline: none; }
 /* 局终结算大字飘逸浮现样式 */
 .floating-profit {
   position: absolute;
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 900;
   text-align: center;
   pointer-events: none;
@@ -978,7 +979,7 @@ input  { font-family: inherit; outline: none; }
 }
 
 .settlement-box h2 {
-  font-size: 22px; /* Massive Title! */
+  font-size: 28px; /* Massive Title! */
   font-weight: 800;
   letter-spacing: 0.5px;
   margin: 0;
@@ -1002,7 +1003,7 @@ input  { font-family: inherit; outline: none; }
 }
 
 .settlement-player-profit {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 800;
   color: #fff;
   white-space: nowrap;
@@ -1016,7 +1017,7 @@ input  { font-family: inherit; outline: none; }
 
 /* Premium Winner Hand Showcase */
 .settlement-detail {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
   color: #fff;
   background: linear-gradient(135deg, rgba(201, 168, 76, 0.25) 0%, rgba(243, 215, 115, 0.15) 100%);
@@ -1071,7 +1072,7 @@ input  { font-family: inherit; outline: none; }
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .settlement-row-name {
@@ -1102,6 +1103,51 @@ input  { font-family: inherit; outline: none; }
   width: 100%;
   background: var(--gold);
   border-radius: 0;
+}
+
+/* 亮牌 / 盖牌按钮区域 */
+.show-muck-area {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.btn-show-hand {
+  padding: 7px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--gold);
+  background: rgba(201,168,76,0.15);
+  color: var(--gold-light);
+  transition: all 0.2s;
+  box-shadow: 0 0 10px rgba(201,168,76,0.15);
+}
+.btn-show-hand:hover {
+  background: rgba(201,168,76,0.3);
+  box-shadow: 0 0 15px rgba(201,168,76,0.3);
+}
+.btn-show-hand.shown {
+  border-color: var(--green);
+  background: rgba(63,185,80,0.15);
+  color: var(--green);
+  cursor: default;
+}
+.btn-muck-hand {
+  padding: 7px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+.btn-muck-hand:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
 }
 
 /* 头像物理受击弹性反馈 */
@@ -1290,7 +1336,7 @@ input  { font-family: inherit; outline: none; }
   gap: 8px;
   padding: 4.5px 12px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 14px;
   transition: all 0.3s ease;
   z-index: 12;
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
@@ -1352,7 +1398,7 @@ input  { font-family: inherit; outline: none; }
   top: -15px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   padding: 4px 12px;
   border-radius: 20px;
@@ -1658,7 +1704,7 @@ input  { font-family: inherit; outline: none; }
 }
 
 .winner-hand-label {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--gold-light);
   font-weight: 700;
   text-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
@@ -1668,6 +1714,56 @@ input  { font-family: inherit; outline: none; }
   display: flex;
   gap: 6px;
   justify-content: center;
+}
+
+/* 5+2 结算动画 */
+.settle-card-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.settle-card-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.settle-card-row .card.sm {
+  transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.card.card-highlight {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 12px rgba(201,168,76,0.6), 0 0 4px rgba(201,168,76,0.8) !important;
+  transform: translateY(-4px);
+}
+.card.card-dimmed {
+  opacity: 0.25;
+  filter: grayscale(0.7);
+  transform: scale(0.92);
+}
+@keyframes flyInFromBottom {
+  from { opacity: 0; transform: translateY(40px) scale(0.8); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.card.hole-fly-in {
+  animation: flyInFromBottom 0.45s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+.settle-best-label {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold-light);
+  text-shadow: 0 0 8px rgba(201,168,76,0.4);
+  margin-top: 4px;
+  animation: badgeFadeIn 0.35s ease-out forwards;
+}
+.settle-divider-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 /* 🏆 实时筹码榜 & 本局行动日志浮窗 */

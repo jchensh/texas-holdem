@@ -51,6 +51,7 @@ const SocketClient = {
     raise(amount) { socket && socket.emit('action', { type: 'raise', amount }); },
     ready()       { socket && socket.emit('ready'); },
     joinTable(tableId) { socket && socket.emit('join_table', { tableId }); },
+    showHand()    { socket && socket.emit('show_hand'); },
   },
 
   /** 绑定服务端推送事件，调用 App 的更新函数 */
@@ -76,5 +77,6 @@ const SocketClient = {
     socket.on('chips_update',   (data) => App.updateChips(data));
     socket.on('error',          (data) => App.showError(data.message));
     socket.on('global_notification', (data) => App.showGlobalNotification(data));
+    socket.on('player_show_hand', (data) => App.onPlayerShowHand(data));
   },
 };

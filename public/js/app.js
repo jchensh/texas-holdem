@@ -669,6 +669,18 @@ const App = {
       SocketClient.emit.raise(amount);
       this.hideActionPanel();
     });
+
+    // 结算亮牌 / 盖牌按钮
+    document.getElementById('btn-show-hand').addEventListener('click', () => {
+      SocketClient.emit.showHand();
+      const btn = document.getElementById('btn-show-hand');
+      btn.classList.add('shown');
+      btn.textContent = '✅ 已亮牌';
+      document.getElementById('btn-muck-hand').style.display = 'none';
+    });
+    document.getElementById('btn-muck-hand').addEventListener('click', () => {
+      document.getElementById('show-muck-area').style.display = 'none';
+    });
   },
 
   _bindRaiseSlider() {
@@ -1017,9 +1029,6 @@ const App = {
     seat.querySelector('.seat-chips-val').textContent = `${player.chips}`;
     seat.querySelector('.avatar-initials').textContent = player.username.charAt(0).toUpperCase();
 
-    const dealerBtn = seat.querySelector('.dealer-btn');
-    dealerBtn.hidden = !player.isDealer;
-
     const betBadge = seat.querySelector('.seat-bet-badge');
     if (player.bet) {
       seat.querySelector('.bet-val').textContent = player.bet;
@@ -1074,7 +1083,6 @@ const App = {
     seat.querySelector('.seat-chips-val').textContent = '–';
     seat.querySelector('.avatar-initials').textContent = '?';
     seat.querySelector('.seat-bet-badge').hidden = true;
-    seat.querySelector('.dealer-btn').hidden     = true;
     seat.querySelector('.seat-cards').style.opacity = '1';
     seat.querySelector('.seat-cards').innerHTML  = ''; // 空座时不显示手牌占位背部
     seat.classList.remove('active-turn', 'folded', 'all-in', 'offline');
@@ -1199,7 +1207,24 @@ const App = {
       ? `${data.winner} 赢得 ${data.pot} 筹码！`
       : '平局';
     document.getElementById('game-status').textContent = msg;
-    // TODO: 翻开对手手牌（data.hands）
+  },
+
+  /** 处理玩家亮牌广播 */
+  onPlayerShowHand(data) {
+    console.log(`[ShowHand] 玩家 ${data.username} 亮牌 (座位 ${data.seatId})`, data.holeCards);
+    const seatId = data.seatId;
+    if (seatId === 0) return; // 自己的牌自己能看到
+    const seat = document.getElementById(`seat-${seatId}`);
+    if (!seat) return;
+    const seatCards = seat.querySelector('.seat-cards');
+    if (!seatCards || !data.holeCards || data.holeCards.length < 2) return;
+    // 翻开该玩家的手牌
+    seatCards.style.opacity = '1';
+    seatCards.innerHTML = data.holeCards.map(c => `
+      <div class="card sm deal ${this._isRed(c.suit) ? 'red' : ''}">
+        ${this._cardInnerHTML(c)}
+      </div>
+    `).join('');
   },
 
   /** 玩家加入大厅（落座事件，step 5+ 会用上） */
@@ -1338,8 +1363,6 @@ const App = {
       heroBet.hidden = true;
     }
 
-    document.getElementById('hero-dealer').hidden = !player.isDealer;
-    
     const heroSeat = document.getElementById('seat-0');
     if (heroSeat) {
       if (player.isOffline) {
@@ -1608,10 +1631,8 @@ const App = {
     const myUsername = this.state.user?.username;
     const myResult = results.summary.find(s => s.username === myUsername);
 
-    let profitText = '';
     if (myResult) {
       const p = myResult.profit;
-      const fmtProfit = p >= 0 ? `+${p}` : `${p}`;
       
       if (p > 0) {
         box.classList.add('win');
@@ -1642,7 +1663,7 @@ const App = {
     const winDetails = winners.map(w => `${w.username} (${w.categoryName || '未知牌型'})`).join(', ');
     detailEl.textContent = winDetails ? `赢家牌型: ${winDetails}` : '本局无赢家（全员弃牌或平分）';
 
-    // 赢家摊牌手牌可视化展示
+    // 3. 赢家 5+2 动画展示
     const cardsEl = document.getElementById('settlement-winner-cards');
     if (cardsEl) {
       cardsEl.innerHTML = '';
@@ -1655,30 +1676,101 @@ const App = {
         
         winners.forEach(w => {
           const handData = results.hands[w.seatId];
-          if (handData && Array.isArray(handData.cards) && handData.cards.length > 0) {
-            hasCards = true;
-            const winnerHandDiv = document.createElement('div');
-            winnerHandDiv.className = 'winner-hand-block';
+          if (!handData || !Array.isArray(handData.cards) || handData.cards.length === 0) return;
+          hasCards = true;
+
+          const winnerHandDiv = document.createElement('div');
+          winnerHandDiv.className = 'winner-hand-block';
+          
+          const label = document.createElement('div');
+          label.className = 'winner-hand-label';
+          label.innerHTML = `👑 <strong>${w.username}</strong> 胜出`;
+          winnerHandDiv.appendChild(label);
+          
+          // 获取公共牌和最优5张牌
+          const communityCards = this.state.game?.communityCards || [];
+          const bestCards = handData.cards; // 最优5张
+          
+          // 构建卡牌唯一标识符来做匹配
+          const cardKey = (c) => `${c.rank}${c.suit}`;
+          const bestSet = new Set(bestCards.map(cardKey));
+          
+          // Stage 容器
+          const stage = document.createElement('div');
+          stage.className = 'settle-card-stage';
+          
+          // 第一行：5张公共牌
+          if (communityCards.length > 0) {
+            const communityRow = document.createElement('div');
+            communityRow.className = 'settle-card-row';
             
-            const label = document.createElement('div');
-            label.className = 'winner-hand-label';
-            label.innerHTML = `👑 <strong>${w.username}</strong> 胜出牌组 (${handData.categoryName || '未知牌型'}):`;
-            winnerHandDiv.appendChild(label);
-            
-            const cardRow = document.createElement('div');
-            cardRow.className = 'winner-card-row';
-            
-            handData.cards.forEach(c => {
+            communityCards.forEach(c => {
               const cardDiv = document.createElement('div');
               const isRed = c.suit === '♥' || c.suit === '♦';
-              cardDiv.className = `card sm deal ${isRed ? 'red' : ''}`;
+              cardDiv.className = `card sm ${isRed ? 'red' : ''}`;
               cardDiv.innerHTML = this._cardInnerHTML(c);
-              cardRow.appendChild(cardDiv);
+              cardDiv.dataset.key = cardKey(c);
+              communityRow.appendChild(cardDiv);
+            });
+            stage.appendChild(communityRow);
+          }
+          
+          // 分隔线
+          const divider = document.createElement('div');
+          divider.className = 'settle-divider-label';
+          divider.textContent = '底  牌';
+          stage.appendChild(divider);
+          
+          // 第二行：玩家的2张底牌（找出不在公共牌中的牌）
+          const communitySet = new Set(communityCards.map(cardKey));
+          const holeCards = bestCards.filter(c => !communitySet.has(cardKey(c)));
+          // 如果最优5张全是公共牌（极少见），尝试从results数据推断
+          const holeRow = document.createElement('div');
+          holeRow.className = 'settle-card-row';
+          
+          // 检查state中是否有该玩家的holeCards
+          const playerState = this.state.game?.players?.find(p => p.seatId === w.seatId);
+          const actualHoleCards = (playerState && playerState.holeCards && playerState.holeCards.length === 2)
+            ? playerState.holeCards
+            : holeCards.slice(0, 2);
+          
+          actualHoleCards.forEach((c, i) => {
+            const cardDiv = document.createElement('div');
+            const isRed = c.suit === '♥' || c.suit === '♦';
+            cardDiv.className = `card sm ${isRed ? 'red' : ''}`;
+            cardDiv.innerHTML = this._cardInnerHTML(c);
+            cardDiv.dataset.key = cardKey(c);
+            cardDiv.style.opacity = '0'; // 动画初始状态
+            holeRow.appendChild(cardDiv);
+            
+            // 延迟飞入动画
+            setTimeout(() => {
+              cardDiv.style.opacity = '';
+              cardDiv.classList.add('hole-fly-in');
+            }, 600 + i * 250);
+          });
+          stage.appendChild(holeRow);
+          
+          // 动画第3阶段：高亮最优5张，压暗其余
+          setTimeout(() => {
+            const allCards = stage.querySelectorAll('.card.sm');
+            allCards.forEach(el => {
+              if (bestSet.has(el.dataset.key)) {
+                el.classList.add('card-highlight');
+              } else {
+                el.classList.add('card-dimmed');
+              }
             });
             
-            winnerHandDiv.appendChild(cardRow);
-            flexContainer.appendChild(winnerHandDiv);
-          }
+            // 显示最优牌型名称
+            const bestLabel = document.createElement('div');
+            bestLabel.className = 'settle-best-label';
+            bestLabel.textContent = `🏅 ${handData.categoryName || '最优牌型'}`;
+            stage.appendChild(bestLabel);
+          }, 1500);
+          
+          winnerHandDiv.appendChild(stage);
+          flexContainer.appendChild(winnerHandDiv);
         });
 
         if (hasCards) {
@@ -1688,7 +1780,31 @@ const App = {
       }
     }
 
-    // 3. 填充所有选手的滚动盈亏列表
+    // 4. 亮牌/盖牌按钮控制
+    const showMuckArea = document.getElementById('show-muck-area');
+    if (showMuckArea) {
+      showMuckArea.style.display = 'none';
+      // 重置按钮状态
+      const showBtn = document.getElementById('btn-show-hand');
+      const muckBtn = document.getElementById('btn-muck-hand');
+      if (showBtn) {
+        showBtn.classList.remove('shown');
+        showBtn.textContent = '👁 亮牌';
+      }
+      if (muckBtn) muckBtn.style.display = '';
+      
+      // 只有当本人参与了本局（有手牌）时才显示
+      if (myResult && this.state.game) {
+        const heroPlayer = this.state.game.players?.find(p => p.seatId === 0);
+        // 非赢家（赢家手牌已经自动摊牌了）才需要选择亮牌
+        const isWinner = myResult.won > 0;
+        if (heroPlayer && !isWinner) {
+          showMuckArea.style.display = 'flex';
+        }
+      }
+    }
+
+    // 5. 填充所有选手的滚动盈亏列表
     subDetailsEl.innerHTML = results.summary.map(s => {
       const fmtP = s.profit >= 0 ? `+${s.profit}` : `${s.profit}`;
       const cls = s.profit > 0 ? 'win' : s.profit < 0 ? 'loss' : 'push';
@@ -1700,7 +1816,7 @@ const App = {
       `;
     }).join('');
 
-    // 4. 重置并激活倒计时进度条 (5.5 秒后自动关闭，契合服务器的 6 秒结算间隔)
+    // 6. 重置并激活倒计时进度条 (7.5 秒后自动关闭，契合服务器的 8 秒结算间隔)
     progressEl.style.transition = 'none';
     progressEl.style.width = '100%';
     // 强制触发 DOM 重绘以使过渡动效生效
@@ -1708,10 +1824,10 @@ const App = {
     progressEl.style.transition = 'width 7.5s linear';
     progressEl.style.width = '0%';
 
-    // 5. 显现弹窗
+    // 7. 显现弹窗
     overlay.classList.add('active');
 
-    // 6. 设定定时器自动撤销弹窗
+    // 8. 设定定时器自动撤销弹窗
     if (this._settlementTimer) clearTimeout(this._settlementTimer);
     this._settlementTimer = setTimeout(() => {
       overlay.classList.remove('active');

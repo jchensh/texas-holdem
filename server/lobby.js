@@ -39,6 +39,11 @@ function attach(io) {
       table.handlePlayerAction(socket, action);
     });
 
+    // 结算亮牌请求
+    socket.on('show_hand', () => {
+      table.handleShowHand(socket);
+    });
+
     // 监听断开连接
     socket.on('disconnect', () => {
       table.handleDisconnect(socket);
