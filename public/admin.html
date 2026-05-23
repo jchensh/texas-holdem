@@ -891,143 +891,149 @@
     <!-- 主控面板 -->
     <div class="dashboard-body">
       
-      <!-- 中左：牌局明牌监视器 -->
-      <div class="panel">
-        <div class="panel-header">
-          <h2>实时明牌局势监控屏</h2>
-          <span id="game-status-desc" class="mini-phase-badge">等待开局</span>
+      <!-- 左侧：牌局明牌监视器 + 实时控制台日志 -->
+      <div style="display: flex; flex-direction: column; gap: 25px; min-width: 0;">
+        <!-- 中左：牌局明牌监视器 -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>实时明牌局势监控屏</h2>
+            <span id="game-status-desc" class="mini-phase-badge">等待开局</span>
+          </div>
+          
+          <div class="table-container">
+            <div class="table-monitor-scene">
+              
+              <!-- 椭圆中心区域 -->
+              <div class="poker-table-mini">
+                <div class="table-center-info">
+                  <div class="mini-comm-cards" id="mini-comm-cards">
+                    <!-- JS 动态注入 community card -->
+                    <div class="card card-placeholder"></div>
+                    <div class="card card-placeholder"></div>
+                    <div class="card card-placeholder"></div>
+                    <div class="card card-placeholder"></div>
+                    <div class="card card-placeholder"></div>
+                  </div>
+                  <div class="mini-pot-row">
+                    <span>奖池</span>
+                    <span id="mini-pot-amount">0</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 0..5 (对应服务器物理绝对座位) -->
+              <!-- 座位 0 -->
+              <div class="mini-seat empty-seat" id="seat-abs-0" data-seat="0">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">0</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 1 -->
+              <div class="mini-seat empty-seat" id="seat-abs-1" data-seat="1">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">1</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 2 -->
+              <div class="mini-seat empty-seat" id="seat-abs-2" data-seat="2">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">2</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 3 -->
+              <div class="mini-seat empty-seat" id="seat-abs-3" data-seat="3">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">3</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 4 -->
+              <div class="mini-seat empty-seat" id="seat-abs-4" data-seat="4">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">4</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 5 -->
+              <div class="mini-seat empty-seat" id="seat-abs-5" data-seat="5">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">5</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </div>
-        
-        <div class="table-container">
-          <div class="table-monitor-scene">
-            
-            <!-- 椭圆中心区域 -->
-            <div class="poker-table-mini">
-              <div class="table-center-info">
-                <div class="mini-comm-cards" id="mini-comm-cards">
-                  <!-- JS 动态注入 community card -->
-                  <div class="card card-placeholder"></div>
-                  <div class="card card-placeholder"></div>
-                  <div class="card card-placeholder"></div>
-                  <div class="card card-placeholder"></div>
-                  <div class="card card-placeholder"></div>
-                </div>
-                <div class="mini-pot-row">
-                  <span>奖池</span>
-                  <span id="mini-pot-amount">0</span>
-                </div>
-              </div>
-            </div>
 
-            <!-- 座位 0..5 (对应服务器物理绝对座位) -->
-            <!-- 座位 0 -->
-            <div class="mini-seat empty-seat" id="seat-abs-0" data-seat="0">
-              <div class="mini-hole-cards"></div>
-              <div class="mini-seat-body">
-                <span class="absolute-seat-badge">0</span>
-                <span class="mini-dealer-btn" hidden>D</span>
-                <div class="mini-avatar">?</div>
-                <div class="mini-meta">
-                  <span class="mini-name">空座</span>
-                  <span class="mini-chips">–</span>
-                </div>
-              </div>
+        <!-- 服务器实时终端控制台日志 -->
+        <div class="panel" style="box-shadow: 0 15px 35px rgba(0,0,0,0.5);">
+          <div class="panel-header">
+            <h2>服务器实时控制台日志</h2>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button onclick="downloadConsoleLogs()" style="background: var(--gold); border: 1.5px solid var(--gold); border-radius: 4px; padding: 4px 10px; color: #111; cursor: pointer; font-size: 10px; font-weight: 800; transition: background 0.15s, transform 0.1s;" onmouseover="this.style.background='#ffe082'; this.style.transform='scale(1.03)';" onmouseout="this.style.background='var(--gold)'; this.style.transform='scale(1)';">导出日志 TXT</button>
+              <button onclick="clearConsoleLogs()" style="background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; color: var(--text-muted); cursor: pointer; font-size: 10px; font-weight: 700; transition: background 0.15s, color 0.15s;" onmouseover="this.style.color='#f8fafc'; this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.color='var(--text-muted)'; this.style.background='rgba(255,255,255,0.04)'">清空</button>
             </div>
-
-            <!-- 座位 1 -->
-            <div class="mini-seat empty-seat" id="seat-abs-1" data-seat="1">
-              <div class="mini-hole-cards"></div>
-              <div class="mini-seat-body">
-                <span class="absolute-seat-badge">1</span>
-                <span class="mini-dealer-btn" hidden>D</span>
-                <div class="mini-avatar">?</div>
-                <div class="mini-meta">
-                  <span class="mini-name">空座</span>
-                  <span class="mini-chips">–</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 座位 2 -->
-            <div class="mini-seat empty-seat" id="seat-abs-2" data-seat="2">
-              <div class="mini-hole-cards"></div>
-              <div class="mini-seat-body">
-                <span class="absolute-seat-badge">2</span>
-                <span class="mini-dealer-btn" hidden>D</span>
-                <div class="mini-avatar">?</div>
-                <div class="mini-meta">
-                  <span class="mini-name">空座</span>
-                  <span class="mini-chips">–</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 座位 3 -->
-            <div class="mini-seat empty-seat" id="seat-abs-3" data-seat="3">
-              <div class="mini-hole-cards"></div>
-              <div class="mini-seat-body">
-                <span class="absolute-seat-badge">3</span>
-                <span class="mini-dealer-btn" hidden>D</span>
-                <div class="mini-avatar">?</div>
-                <div class="mini-meta">
-                  <span class="mini-name">空座</span>
-                  <span class="mini-chips">–</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 座位 4 -->
-            <div class="mini-seat empty-seat" id="seat-abs-4" data-seat="4">
-              <div class="mini-hole-cards"></div>
-              <div class="mini-seat-body">
-                <span class="absolute-seat-badge">4</span>
-                <span class="mini-dealer-btn" hidden>D</span>
-                <div class="mini-avatar">?</div>
-                <div class="mini-meta">
-                  <span class="mini-name">空座</span>
-                  <span class="mini-chips">–</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 座位 5 -->
-            <div class="mini-seat empty-seat" id="seat-abs-5" data-seat="5">
-              <div class="mini-hole-cards"></div>
-              <div class="mini-seat-body">
-                <span class="absolute-seat-badge">5</span>
-                <span class="mini-dealer-btn" hidden>D</span>
-                <div class="mini-avatar">?</div>
-                <div class="mini-meta">
-                  <span class="mini-name">空座</span>
-                  <span class="mini-chips">–</span>
-                </div>
-              </div>
-            </div>
-
+          </div>
+          <div id="admin-console-log" style="background: #070b19; border-radius: var(--radius-md); border: 1.5px solid rgba(255,255,255,0.06); padding: 12px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #a3e635; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; height: 320px; max-height: 320px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);">
+            <div style="color: #64748b; font-style: italic;">等待接收控制台系统日志流...</div>
           </div>
         </div>
       </div>
 
       <!-- 中右：在线用户与旁观列表 -->
-      <div class="lobby-sidebar">
-        <div class="panel">
+      <div class="lobby-sidebar" style="display: flex; flex-direction: column; min-height: 0;">
+        <div class="panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
           <div class="panel-header">
             <h2>大厅旁观者列表</h2>
           </div>
-          <div class="spectator-list" id="spectator-list">
+          <div class="spectator-list" id="spectator-list" style="flex: 1; max-height: none; overflow-y: auto;">
             <!-- 动态生成 -->
             <div class="spec-empty">当前大厅无旁观者</div>
-          </div>
-        </div>
-
-        <!-- 服务器实时终端控制台日志 -->
-        <div class="panel" style="flex: 1; display: flex; flex-direction: column; min-height: 280px; box-shadow: 0 15px 35px rgba(0,0,0,0.5);">
-          <div class="panel-header">
-            <h2>服务器实时控制台日志</h2>
-            <button onclick="clearConsoleLogs()" style="background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; color: var(--text-muted); cursor: pointer; font-size: 10px; font-weight: 700; transition: background 0.15s, color 0.15s;" onmouseover="this.style.color='#f8fafc'; this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.color='var(--text-muted)'; this.style.background='rgba(255,255,255,0.04)'">清空</button>
-          </div>
-          <div id="admin-console-log" style="flex: 1; background: #070b19; border-radius: var(--radius-md); border: 1.5px solid rgba(255,255,255,0.06); padding: 12px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #a3e635; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; height: 215px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);">
-            <div style="color: #64748b; font-style: italic;">等待接收控制台系统日志流...</div>
           </div>
         </div>
       </div>
@@ -1105,9 +1111,20 @@
     }
 
     // 终端日志辅助方法
+    window.adminLogBuffer = [];
+
     function appendConsoleLog(log) {
       const consoleEl = document.getElementById('admin-console-log');
       if (!consoleEl) return;
+
+      // 放入全局缓存中以供导出，限制 1000 条
+      if (!window.adminLogBuffer) {
+        window.adminLogBuffer = [];
+      }
+      window.adminLogBuffer.push(log);
+      if (window.adminLogBuffer.length > 1000) {
+        window.adminLogBuffer.shift();
+      }
 
       // 如果有默认占位文字，先清空
       if (consoleEl.children.length === 1 && consoleEl.children[0].style.fontStyle === 'italic') {
@@ -1141,6 +1158,43 @@
       if (consoleEl) {
         consoleEl.innerHTML = '<div style="color: #64748b; font-style: italic;">控制台日志已手动清空。</div>';
       }
+      window.adminLogBuffer = [];
+    }
+
+    function downloadConsoleLogs() {
+      if (!window.adminLogBuffer || window.adminLogBuffer.length === 0) {
+        showToast('当前无可用日志可供导出！', 'error');
+        return;
+      }
+
+      // 拼接日志行
+      const textContent = window.adminLogBuffer.map(log => {
+        return `[${log.timestamp}] [${log.type.toUpperCase()}] ${log.message}`;
+      }).join('\n');
+
+      // 生成 Blob 并下载
+      const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      
+      // 以当前时间命名文件名
+      const now = new Date();
+      const timeStr = now.getFullYear() + 
+        String(now.getMonth() + 1).padStart(2, '0') + 
+        String(now.getDate()).padStart(2, '0') + '_' + 
+        String(now.getHours()).padStart(2, '0') + 
+        String(now.getMinutes()).padStart(2, '0') + 
+        String(now.getSeconds()).padStart(2, '0');
+        
+      a.href = url;
+      a.download = `poker_server_logs_${timeStr}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showToast('控制台日志导出成功！', 'success');
     }
 
     // 建立连接
