@@ -75,5 +75,6 @@ const SocketClient = {
     socket.on('player_left',    (data) => App.clearPlayerSeat(data.seatId));
     socket.on('chips_update',   (data) => App.updateChips(data));
     socket.on('error',          (data) => App.showError(data.message));
+    socket.on('global_notification', (data) => App.showGlobalNotification(data));
   },
 };

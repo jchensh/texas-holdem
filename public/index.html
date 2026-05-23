@@ -175,6 +175,11 @@
           </div>
         </div>
         <div class="game-status-text" id="game-status">等待玩家加入…</div>
+        <!-- 核心回合状态指示器 -->
+        <div class="turn-indicator" id="turn-indicator" hidden>
+          <span class="turn-dot"></span>
+          <span class="turn-text" id="turn-text">当前回合: -</span>
+        </div>
       </div>
 
       <!-- 英雄区（本人） -->
@@ -245,6 +250,56 @@
 
     </div><!-- .table-scene -->
   </main>
+
+  <!-- 德州扑克底栏：常驻规则与跑马灯提示 -->
+  <footer class="game-footer">
+    <!-- 德州扑克规则常驻区 (Rank List) -->
+    <div class="rules-bar">
+      <span class="rules-title">🏆 德州牌型</span>
+      <span class="rule-item">同花顺</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">四条</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">葫芦</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">同花</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">顺子</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">三条</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">两对</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">一对</span>
+      <span class="rule-item-arrow">&gt;</span>
+      <span class="rule-item">高牌</span>
+    </div>
+    <!-- 滚动提示广播条 (Ticker) -->
+    <div class="ticker-bar">
+      <span class="ticker-icon">📢</span>
+      <div class="ticker-wrap">
+        <div class="ticker-scroll" id="ticker-scroll">
+          <span>欢迎来到 Poker Night！请保持网络畅通，祝您好运！</span>
+          <span>德州扑克共有四个下注圈：翻牌前、翻牌圈、转牌圈和河牌圈。</span>
+          <span>当有玩家掉线或主动离开时，其座位将被置灰并进入2秒超速自动托管状态。</span>
+          <span>点击右上角的“手牌记录”可以查阅您的 SQLite 盈亏数据与智能中文复盘。</span>
+          <span>游戏过程中如果听到叩击桌面的声效，表示本街有人执行了“过牌（Check）”操作。</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 全局霸气充值霓虹弹窗 -->
+  <div id="global-alert-overlay" class="global-alert-overlay">
+    <div class="global-alert-box">
+      <button class="global-alert-close" onclick="closeGlobalAlert()">×</button>
+      <div class="global-alert-glow"></div>
+      <div class="global-alert-icon">💰</div>
+      <h2 id="global-alert-title">系统广播</h2>
+      <div id="global-alert-content" class="global-alert-content">内容</div>
+      <button class="btn-primary" onclick="closeGlobalAlert()" style="margin-top: 15px; width: 120px; font-weight: 800; border-radius: 8px;">好的</button>
+    </div>
+  </div>
 
   <!-- 大厅等候蒙层（可关闭） -->
   <div class="overlay" id="lobby-overlay">

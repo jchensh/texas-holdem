@@ -93,6 +93,30 @@ module.exports = {
           message: success ? `已成功将玩家 ${username} 移出牌桌` : `未找到玩家 ${username}`
         });
       });
+
+      // 4. 监听管理员调整筹码动作
+      socket.on('admin_adjust_chips', (data) => {
+        const { username, amount } = data;
+        const parseAmount = parseInt(amount, 10);
+        if (!username || isNaN(parseAmount) || parseAmount <= 0) {
+          return socket.emit('admin_action_result', {
+            action: 'adjust_chips',
+            success: false,
+            message: '充值金额不合法'
+          });
+        }
+        
+        originalLog.apply(console, [`[AdminSocket] 收到管理员筹码充值指令, 目标: ${username}, 数额: ${parseAmount}`]);
+        const result = table.adjustPlayerChips(username, parseAmount);
+        
+        // 反馈结果给操作人
+        socket.emit('admin_action_result', {
+          action: 'adjust_chips',
+          username,
+          success: result.success,
+          message: result.message
+        });
+      });
       
       socket.on('disconnect', () => {
         originalLog.apply(console, [`[AdminSocket] 管理员连接断开: ${socket.id}`]);

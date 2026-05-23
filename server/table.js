@@ -867,6 +867,62 @@ class Table {
       systemStats,
     };
   }
+
+  adjustPlayerChips(username, amount) {
+    const targetName = String(username).toLowerCase();
+    
+    // 1. 查询数据库中该玩家是否存在
+    const user = db.prepare('SELECT id, username, chips FROM users WHERE LOWER(username) = ?').get(targetName);
+    if (!user) {
+      return { success: false, message: `未找到玩家 ${username}` };
+    }
+    
+    const realUsername = user.username; // 拿真实的大小写用户名
+    const newChips = user.chips + amount;
+    
+    // 2. 更新数据库
+    db.prepare('UPDATE users SET chips = ? WHERE id = ?').run(newChips, user.id);
+    
+    // 3. 更新大厅旁观者（如果他在旁观）
+    for (const [socketId, spec] of this.spectators.entries()) {
+      if (spec.username.toLowerCase() === targetName) {
+        spec.chips = newChips;
+      }
+    }
+    
+    // 4. 更新物理座位上的筹码（如果他已落座）
+    const seatIndex = this.seats.findIndex(s => s && s.username.toLowerCase() === targetName);
+    if (seatIndex !== -1) {
+      this.seats[seatIndex].chips = newChips;
+      // 广播给所有人，让他们知道该座位筹码变了
+      this.broadcast('chips_update', { seatId: seatIndex, chips: newChips });
+    }
+    
+    // 5. 更新德州引擎中的筹码（如果游戏正在打且他在打）
+    if (this.game && this.game.phase !== 'ended') {
+      const enginePlayer = this.game.players.find(p => p.username.toLowerCase() === targetName);
+      if (enginePlayer) {
+        enginePlayer.chips += amount;
+      }
+    }
+    
+    // 6. 全局弹窗广播给所有人！
+    this.broadcast('global_notification', {
+      type: 'buyin',
+      username: realUsername,
+      seatId: seatIndex,
+      addedAmount: amount,
+      totalChips: newChips,
+      message: `管理员为玩家 <strong>[${realUsername}]</strong> 额外Buyin充值了 <strong>${amount}</strong> 筹码！<br>当前总筹码量为 <strong>${newChips}</strong>。`
+    });
+    
+    // 7. 同步大厅状态和管理员状态
+    this.syncLobbyState();
+    this.notifyAdmin();
+    
+    console.log(`[Table] 管理员充值: 玩家 ${realUsername} +${amount} 筹码，当前总计: ${newChips}`);
+    return { success: true, message: `成功为玩家 ${realUsername} 充值 ${amount} 筹码，当前一共有 ${newChips}` };
+  }
 }
 
 // 导出全局 Table 状态机单例

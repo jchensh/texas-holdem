@@ -542,6 +542,91 @@
       transform: translateY(-50%) scale(0.95);
     }
 
+    /* 物理席位筹码充值微型工具栏 */
+    .mini-chips-adjust-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 3px 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      margin-top: 5px;
+      z-index: 20;
+    }
+
+    .input-adjust-val {
+      width: 45px;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      padding: 0;
+      outline: none;
+    }
+
+    .input-adjust-val:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 6px var(--gold-glow);
+    }
+
+    .input-adjust-val::-webkit-outer-spin-button,
+    .input-adjust-val::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .btn-adjust-submit {
+      height: 20px;
+      padding: 0 6px;
+      background: var(--green);
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .btn-adjust-submit:hover {
+      opacity: 0.9;
+      transform: scale(1.05);
+    }
+    
+    .btn-adjust-submit:active {
+      transform: scale(0.95);
+    }
+
+    .btn-adjust-quick {
+      height: 20px;
+      padding: 0 6px;
+      background: var(--gold);
+      border: none;
+      border-radius: 4px;
+      color: #111;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      box-shadow: 0 0 6px rgba(201, 168, 76, 0.3);
+    }
+
+    .btn-adjust-quick:hover {
+      opacity: 0.9;
+      transform: scale(1.05);
+      box-shadow: 0 0 10px var(--gold-glow);
+    }
+
+    .btn-adjust-quick:active {
+      transform: scale(0.95);
+    }
+
     /* ══════════════════════════════════════════
        牌渲染 (Card Base Mini)
        ══════════════════════════════════════════ */
@@ -1244,9 +1329,9 @@
         appendConsoleLog(log);
       });
 
-      // 踢人操作反馈
+      // 管理端操作结果反馈
       socket.on('admin_action_result', (res) => {
-        if (res.action === 'kick') {
+        if (res.action === 'kick' || res.action === 'adjust_chips') {
           if (res.success) {
             showToast(res.message, 'success');
           } else {
@@ -1383,13 +1468,15 @@
       const chipsEl = seatEl.querySelector('.mini-chips');
       const dealerBtn = seatEl.querySelector('.mini-dealer-btn');
       
-      // 移除可能存在的 Kick 按钮、已注角标、离线角标
+      // 移除可能存在的 Kick 按钮、已注角标、离线角标、充值微调栏
       const oldKick = seatEl.querySelector('.btn-kick-player');
       if (oldKick) oldKick.remove();
       const oldBet = seatEl.querySelector('.mini-seat-bet-val');
       if (oldBet) oldBet.remove();
       const oldOffline = seatEl.querySelector('.mini-offline-badge');
       if (oldOffline) oldOffline.remove();
+      const oldAdjust = seatEl.querySelector('.mini-chips-adjust-wrap');
+      if (oldAdjust) oldAdjust.remove();
 
       cardsContainer.innerHTML = '';
       dealerBtn.hidden = true;
@@ -1461,6 +1548,43 @@
       
       const body = seatEl.querySelector('.mini-seat-body');
       body.appendChild(kickBtn);
+
+      // 挂载筹码充值面板
+      const adjustWrap = document.createElement('div');
+      adjustWrap.className = 'mini-chips-adjust-wrap';
+      
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'input-adjust-val';
+      input.placeholder = '+加筹码';
+      input.min = '1';
+      
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn-adjust-submit';
+      confirmBtn.type = 'button';
+      confirmBtn.textContent = '充值';
+      confirmBtn.onclick = () => {
+        const val = parseInt(input.value, 10);
+        if (isNaN(val) || val <= 0) {
+          showToast('请输入正确的充值金额！', 'error');
+          return;
+        }
+        triggerAdjustChips(onlineUser.username, val);
+        input.value = '';
+      };
+      
+      const quickBtn = document.createElement('button');
+      quickBtn.className = 'btn-adjust-quick';
+      quickBtn.type = 'button';
+      quickBtn.textContent = '+500';
+      quickBtn.onclick = () => {
+        triggerAdjustChips(onlineUser.username, 500);
+      };
+      
+      adjustWrap.appendChild(input);
+      adjustWrap.appendChild(confirmBtn);
+      adjustWrap.appendChild(quickBtn);
+      seatEl.appendChild(adjustWrap);
     }
 
     // ══════════════════════════════════════════
@@ -1471,6 +1595,11 @@
         console.log('[Admin] 发送踢人指令:', username);
         socket.emit('admin_kick', { username });
       }
+    }
+
+    function triggerAdjustChips(username, amount) {
+      console.log(`[Admin] 发送加筹码指令: 玩家: ${username}, 金额: ${amount}`);
+      socket.emit('admin_adjust_chips', { username, amount });
     }
 
     // ══════════════════════════════════════════

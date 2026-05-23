@@ -407,6 +407,9 @@ const App = {
     // 初始化音效引擎
     AudioEngine.init();
 
+    // 挂载全局充值弹窗辅助，方便 HTML 行内事件触发
+    window.closeGlobalAlert = () => this.closeGlobalAlert();
+
     this._bindAuthEvents();
     this._bindGameEvents();
     this._bindHistoryEvents();
@@ -447,6 +450,59 @@ const App = {
   _showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(`view-${name}`).classList.add('active');
+  },
+
+  showGlobalNotification(data) {
+    console.log('[App] 收到全局广播通知:', data);
+    
+    // 如果是充值事件，播放音效（用已有的筹码音效）
+    if (data.type === 'buyin') {
+      AudioEngine.playSFX('chip');
+    }
+    
+    const overlay = document.getElementById('global-alert-overlay');
+    const contentEl = document.getElementById('global-alert-content');
+    const titleEl = document.getElementById('global-alert-title');
+    
+    if (overlay && contentEl) {
+      if (titleEl && data.type === 'buyin') {
+        titleEl.textContent = '💰 筹码充值广播';
+      } else if (titleEl) {
+        titleEl.textContent = '📢 系统广播';
+      }
+      
+      contentEl.innerHTML = data.message;
+      overlay.classList.add('active');
+      
+      // 5秒后自动关闭
+      if (this._globalAlertTimer) clearTimeout(this._globalAlertTimer);
+      this._globalAlertTimer = setTimeout(() => {
+        this.closeGlobalAlert();
+      }, 5000);
+    }
+    
+    // 同时也自动更新对应席位或玩家筹码
+    if (data.type === 'buyin') {
+      // 如果加的是自己，更新本地 header 和 hero-chips 的筹码显示
+      if (this.state.user && this.state.user.username === data.username) {
+        this.state.user.chips = data.totalChips;
+        const headChips = document.getElementById('header-chips');
+        if (headChips) headChips.textContent = data.totalChips;
+        const heroChips = document.getElementById('hero-chips');
+        if (heroChips) heroChips.textContent = data.totalChips;
+      }
+    }
+  },
+
+  closeGlobalAlert() {
+    const overlay = document.getElementById('global-alert-overlay');
+    if (overlay) {
+      overlay.classList.remove('active');
+    }
+    if (this._globalAlertTimer) {
+      clearTimeout(this._globalAlertTimer);
+      this._globalAlertTimer = null;
+    }
   },
 
   // ── 认证 ──────────────────────────────────────────
@@ -710,6 +766,31 @@ const App = {
 
     if (state.communityCards) this.renderCommunityCards(state.communityCards);
 
+    // 渲染回合指示器
+    const turnIndicator = document.getElementById('turn-indicator');
+    const turnText = document.getElementById('turn-text');
+    if (turnIndicator && turnText) {
+      if (typeof state.currentSeat === 'number' && state.phase !== 'ended') {
+        turnIndicator.hidden = false;
+        
+        // 查找该 seat 的玩家名字
+        const activePlayer = state.players.find(p => p.seatId === state.currentSeat);
+        const name = activePlayer ? activePlayer.username : `席位 ${state.currentSeat}`;
+        
+        // 判断是否是本家回合
+        const isMyTurn = state.currentSeat === 0;
+        if (isMyTurn) {
+          turnIndicator.className = 'turn-indicator my-turn';
+          turnText.innerHTML = `📢 <strong>轮到您行动了！请下注！</strong>`;
+        } else {
+          turnIndicator.className = 'turn-indicator opponent-turn';
+          turnText.innerHTML = `⏳ 正在等待 <strong>${name}</strong> 行动...`;
+        }
+      } else {
+        turnIndicator.hidden = true;
+      }
+    }
+
     // 最强牌型实时提示
     const badge = document.getElementById('hand-type-badge');
     const badgeName = document.getElementById('hand-type-name');
@@ -791,6 +872,10 @@ const App = {
     const badgeName = document.getElementById('hand-type-name');
     if (badge) badge.hidden = true;
     if (badgeName) badgeName.textContent = '高牌';
+
+    // 重置回合指示器
+    const turnIndicator = document.getElementById('turn-indicator');
+    if (turnIndicator) turnIndicator.hidden = true;
 
     // 清下注、状态
     document.querySelectorAll('.seat-bet-badge').forEach(el => el.hidden = true);
@@ -921,9 +1006,42 @@ const App = {
     const seat = document.getElementById(`seat-${data.seatId}`);
     if (!seat) return;
     const labels = { fold: '弃牌', check: '过牌', call: `跟注 ${data.amount}`, raise: `加注 ${data.amount}`, allin: '全押' };
+    
+    // 1. 头像下方的常驻动作文本（短暂停留后消除）
     const el = seat.querySelector('.seat-action-label');
-    el.textContent = labels[data.action] || data.action;
-    setTimeout(() => { el.textContent = ''; }, 2200);
+    if (el) {
+      el.textContent = labels[data.action] || data.action;
+      setTimeout(() => { el.textContent = ''; }, 2200);
+    }
+
+    // 2. 动态生成飘字动画效果 (带有3D平移淡出)
+    const floatEl = document.createElement('div');
+    floatEl.className = 'action-float-text';
+    if (data.action === 'fold') {
+      floatEl.className += ' fold';
+      floatEl.textContent = '弃牌 ✖️';
+    } else if (data.action === 'check') {
+      floatEl.className += ' fold';
+      floatEl.textContent = '过牌 ✊';
+    } else if (data.action === 'call') {
+      floatEl.className += ' call';
+      floatEl.textContent = `跟注 +${data.amount} 💰`;
+    } else if (data.action === 'raise') {
+      floatEl.className += ' raise';
+      floatEl.textContent = `加注 +${data.amount} 🚀`;
+    } else if (data.action === 'allin') {
+      floatEl.className += ' raise';
+      floatEl.textContent = '全押 🔥';
+    } else {
+      floatEl.textContent = data.action;
+    }
+    
+    seat.appendChild(floatEl);
+    
+    // 动画播放完毕自动销毁 (动画时间 1.1s)
+    setTimeout(() => {
+      floatEl.remove();
+    }, 1100);
   },
 
   /** 轮到本玩家行动 */
