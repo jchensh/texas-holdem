@@ -76,6 +76,20 @@
   </header>
 
   <main class="game-main">
+    <!-- 左侧常驻实时筹码榜 -->
+    <aside class="game-sidebar left-sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-icon">🏆</span>
+        <h3>实时筹码榜</h3>
+      </div>
+      <div class="sidebar-content">
+        <div id="leaderboard-list" class="leaderboard-list">
+          <!-- 动态生成排行行 -->
+          <div class="leaderboard-empty">暂无玩家数据</div>
+        </div>
+      </div>
+    </aside>
+
     <div class="table-scene">
 
       <!-- 对手席位 -->
@@ -241,6 +255,10 @@
           <h2 id="settlement-title">牌局结算</h2>
           <div id="settlement-player-profit" class="settlement-player-profit">0 筹码</div>
           <div id="settlement-detail" class="settlement-detail">高牌</div>
+          
+          <!-- 赢家摊牌手牌展示区 -->
+          <div id="settlement-winner-cards" class="settlement-winner-cards" style="display: none;"></div>
+
           <div class="settlement-sub-details" id="settlement-sub-details"></div>
           <div class="settlement-countdown-bar">
             <div class="settlement-countdown-progress" id="settlement-countdown-progress"></div>
@@ -249,30 +267,149 @@
       </div>
 
     </div><!-- .table-scene -->
+
+    <!-- 右侧当局行动日志 -->
+    <aside class="game-sidebar right-sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-icon">⚡</span>
+        <h3>本局行动日志</h3>
+      </div>
+      <div class="sidebar-content">
+        <div id="action-log-list" class="action-log-list">
+          <div class="log-empty">等待玩家行动...</div>
+        </div>
+      </div>
+    </aside>
   </main>
 
   <!-- 德州扑克底栏：常驻规则与跑马灯提示 -->
   <footer class="game-footer">
     <!-- 德州扑克规则常驻区 (Rank List) -->
-    <div class="rules-bar">
-      <span class="rules-title">🏆 德州牌型</span>
-      <span class="rule-item">同花顺</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">四条</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">葫芦</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">同花</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">顺子</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">三条</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">两对</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">一对</span>
-      <span class="rule-item-arrow">&gt;</span>
-      <span class="rule-item">高牌</span>
+    <div class="rules-container">
+      <div class="rules-bar">
+        <span class="rules-title">🏆 德州牌型</span>
+        <span class="rule-item">同花顺</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">四条</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">葫芦</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">同花</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">顺子</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">三条</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">两对</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">一对</span>
+        <span class="rule-item-arrow">&gt;</span>
+        <span class="rule-item">高牌</span>
+        <button id="btn-toggle-rules" class="btn-toggle-rules">🔍 牌例：展开</button>
+      </div>
+
+      <!-- 牌型图例卡牌（默认隐藏） -->
+      <div id="rules-card-showcase" class="rules-card-showcase" style="display: none;">
+        <!-- 同花顺 -->
+        <div class="showcase-item">
+          <span class="showcase-title">同花顺 (Straight Flush)</span>
+          <div class="showcase-cards">
+            <div class="card xs red"><span class="card-rank-tl">9</span><span class="card-suit-center">♥</span><span class="card-rank-br">9</span></div>
+            <div class="card xs red"><span class="card-rank-tl">8</span><span class="card-suit-center">♥</span><span class="card-rank-br">8</span></div>
+            <div class="card xs red"><span class="card-rank-tl">7</span><span class="card-suit-center">♥</span><span class="card-rank-br">7</span></div>
+            <div class="card xs red"><span class="card-rank-tl">6</span><span class="card-suit-center">♥</span><span class="card-rank-br">6</span></div>
+            <div class="card xs red"><span class="card-rank-tl">5</span><span class="card-suit-center">♥</span><span class="card-rank-br">5</span></div>
+          </div>
+        </div>
+        <!-- 四条 -->
+        <div class="showcase-item">
+          <span class="showcase-title">四条 (Four of a Kind)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">8</span><span class="card-suit-center">♠</span><span class="card-rank-br">8</span></div>
+            <div class="card xs red"><span class="card-rank-tl">8</span><span class="card-suit-center">♦</span><span class="card-rank-br">8</span></div>
+            <div class="card xs red"><span class="card-rank-tl">8</span><span class="card-suit-center">♥</span><span class="card-rank-br">8</span></div>
+            <div class="card xs"><span class="card-rank-tl">8</span><span class="card-suit-center">♣</span><span class="card-rank-br">8</span></div>
+            <div class="card xs red"><span class="card-rank-tl">A</span><span class="card-suit-center">♦</span><span class="card-rank-br">A</span></div>
+          </div>
+        </div>
+        <!-- 葫芦 -->
+        <div class="showcase-item">
+          <span class="showcase-title">葫芦 (Full House)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">K</span><span class="card-suit-center">♠</span><span class="card-rank-br">K</span></div>
+            <div class="card xs red"><span class="card-rank-tl">K</span><span class="card-suit-center">♦</span><span class="card-rank-br">K</span></div>
+            <div class="card xs red"><span class="card-rank-tl">K</span><span class="card-suit-center">♥</span><span class="card-rank-br">K</span></div>
+            <div class="card xs"><span class="card-rank-tl">5</span><span class="card-suit-center">♣</span><span class="card-rank-br">5</span></div>
+            <div class="card xs red"><span class="card-rank-tl">5</span><span class="card-suit-center">♥</span><span class="card-rank-br">5</span></div>
+          </div>
+        </div>
+        <!-- 同花 -->
+        <div class="showcase-item">
+          <span class="showcase-title">同花 (Flush)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">A</span><span class="card-suit-center">♣</span><span class="card-rank-br">A</span></div>
+            <div class="card xs"><span class="card-rank-tl">J</span><span class="card-suit-center">♣</span><span class="card-rank-br">J</span></div>
+            <div class="card xs"><span class="card-rank-tl">8</span><span class="card-suit-center">♣</span><span class="card-rank-br">8</span></div>
+            <div class="card xs"><span class="card-rank-tl">6</span><span class="card-suit-center">♣</span><span class="card-rank-br">6</span></div>
+            <div class="card xs"><span class="card-rank-tl">2</span><span class="card-suit-center">♣</span><span class="card-rank-br">2</span></div>
+          </div>
+        </div>
+        <!-- 顺子 -->
+        <div class="showcase-item">
+          <span class="showcase-title">顺子 (Straight)</span>
+          <div class="showcase-cards">
+            <div class="card xs red"><span class="card-rank-tl">9</span><span class="card-suit-center">♦</span><span class="card-rank-br">9</span></div>
+            <div class="card xs red"><span class="card-rank-tl">8</span><span class="card-suit-center">♥</span><span class="card-rank-br">8</span></div>
+            <div class="card xs"><span class="card-rank-tl">7</span><span class="card-suit-center">♣</span><span class="card-rank-br">7</span></div>
+            <div class="card xs"><span class="card-rank-tl">6</span><span class="card-suit-center">♠</span><span class="card-rank-br">6</span></div>
+            <div class="card xs red"><span class="card-rank-tl">5</span><span class="card-suit-center">♦</span><span class="card-rank-br">5</span></div>
+          </div>
+        </div>
+        <!-- 三条 -->
+        <div class="showcase-item">
+          <span class="showcase-title">三条 (Three of a Kind)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">Q</span><span class="card-suit-center">♠</span><span class="card-rank-br">Q</span></div>
+            <div class="card xs red"><span class="card-rank-tl">Q</span><span class="card-suit-center">♦</span><span class="card-rank-br">Q</span></div>
+            <div class="card xs red"><span class="card-rank-tl">Q</span><span class="card-suit-center">♥</span><span class="card-rank-br">Q</span></div>
+            <div class="card xs"><span class="card-rank-tl">A</span><span class="card-suit-center">♣</span><span class="card-rank-br">A</span></div>
+            <div class="card xs red"><span class="card-rank-tl">5</span><span class="card-suit-center">♦</span><span class="card-rank-br">5</span></div>
+          </div>
+        </div>
+        <!-- 两对 -->
+        <div class="showcase-item">
+          <span class="showcase-title">两对 (Two Pairs)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">J</span><span class="card-suit-center">♠</span><span class="card-rank-br">J</span></div>
+            <div class="card xs red"><span class="card-rank-tl">J</span><span class="card-suit-center">♦</span><span class="card-rank-br">J</span></div>
+            <div class="card xs red"><span class="card-rank-tl">4</span><span class="card-suit-center">♥</span><span class="card-rank-br">4</span></div>
+            <div class="card xs"><span class="card-rank-tl">4</span><span class="card-suit-center">♣</span><span class="card-rank-br">4</span></div>
+            <div class="card xs red"><span class="card-rank-tl">9</span><span class="card-suit-center">♦</span><span class="card-rank-br">9</span></div>
+          </div>
+        </div>
+        <!-- 一对 -->
+        <div class="showcase-item">
+          <span class="showcase-title">一对 (One Pair)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">A</span><span class="card-suit-center">♠</span><span class="card-rank-br">A</span></div>
+            <div class="card xs red"><span class="card-rank-tl">A</span><span class="card-suit-center">♦</span><span class="card-rank-br">A</span></div>
+            <div class="card xs"><span class="card-rank-tl">J</span><span class="card-suit-center">♣</span><span class="card-rank-br">J</span></div>
+            <div class="card xs red"><span class="card-rank-tl">8</span><span class="card-suit-center">♥</span><span class="card-rank-br">8</span></div>
+            <div class="card xs red"><span class="card-rank-tl">3</span><span class="card-suit-center">♦</span><span class="card-rank-br">3</span></div>
+          </div>
+        </div>
+        <!-- 高牌 -->
+        <div class="showcase-item">
+          <span class="showcase-title">高牌 (High Card)</span>
+          <div class="showcase-cards">
+            <div class="card xs"><span class="card-rank-tl">K</span><span class="card-suit-center">♠</span><span class="card-rank-br">K</span></div>
+            <div class="card xs red"><span class="card-rank-tl">Q</span><span class="card-suit-center">♦</span><span class="card-rank-br">Q</span></div>
+            <div class="card xs"><span class="card-rank-tl">8</span><span class="card-suit-center">♣</span><span class="card-rank-br">8</span></div>
+            <div class="card xs red"><span class="card-rank-tl">7</span><span class="card-suit-center">♥</span><span class="card-rank-br">7</span></div>
+            <div class="card xs"><span class="card-rank-tl">2</span><span class="card-suit-center">♠</span><span class="card-rank-br">2</span></div>
+          </div>
+        </div>
+      </div>
     </div>
     <!-- 滚动提示广播条 (Ticker) -->
     <div class="ticker-bar">

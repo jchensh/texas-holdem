@@ -407,6 +407,10 @@ const App = {
     // 初始化音效引擎
     AudioEngine.init();
 
+    // 初始化全局行动日志与位置缓存
+    window.actionLogs = [];
+    window.seatPositions = {};
+
     // 挂载全局充值弹窗辅助，方便 HTML 行内事件触发
     window.closeGlobalAlert = () => this.closeGlobalAlert();
 
@@ -414,6 +418,24 @@ const App = {
     this._bindGameEvents();
     this._bindHistoryEvents();
     this._bindRaiseSlider();
+
+    // 德州规则展开开关绑定
+    const toggleBtn = document.getElementById('btn-toggle-rules');
+    const showcase = document.getElementById('rules-card-showcase');
+    if (toggleBtn && showcase) {
+      toggleBtn.addEventListener('click', () => {
+        const isCollapsed = showcase.style.display === 'none';
+        if (isCollapsed) {
+          showcase.style.display = 'grid';
+          toggleBtn.textContent = '🔍 牌例：收回';
+          toggleBtn.classList.add('active');
+        } else {
+          showcase.style.display = 'none';
+          toggleBtn.textContent = '🔍 牌例：展开';
+          toggleBtn.classList.remove('active');
+        }
+      });
+    }
 
     // 尝试用 cookie session 恢复登录态；失败就停在 auth 视图
     try {
@@ -747,6 +769,56 @@ const App = {
   updateGameState(state) {
     this.state.game = state;
     
+    // 1. 推算相对身份位置并存入 window.seatPositions
+    window.seatPositions = {};
+    if (state.players && state.players.length > 0 && typeof state.dealerSeat === 'number') {
+      const activePlayers = state.players.filter(p => p.status !== 'waiting');
+      activePlayers.sort((a, b) => a.seatId - b.seatId);
+      const len = activePlayers.length;
+      const dealerIdx = activePlayers.findIndex(p => p.seatId === state.dealerSeat);
+      if (dealerIdx !== -1) {
+        if (len === 2) {
+          window.seatPositions[activePlayers[dealerIdx].seatId] = 'D/SB';
+          window.seatPositions[activePlayers[(dealerIdx + 1) % 2].seatId] = 'BB';
+        } else if (len >= 3) {
+          window.seatPositions[activePlayers[dealerIdx].seatId] = 'D';
+          window.seatPositions[activePlayers[(dealerIdx + 1) % len].seatId] = 'SB';
+          window.seatPositions[activePlayers[(dealerIdx + 2) % len].seatId] = 'BB';
+          if (len >= 4) {
+            window.seatPositions[activePlayers[(dealerIdx + 3) % len].seatId] = 'UTG';
+          }
+        }
+      }
+    }
+
+    // 2. 日志追踪：街/阶段切换通知
+    if (state.phase && state.phase !== this._lastPhase) {
+      const phaseNames = {
+        preflop: '翻牌前 (Preflop)',
+        flop: '翻牌圈 (Flop)',
+        turn: '转牌圈 (Turn)',
+        river: '河牌圈 (River)',
+        showdown: '摊牌 (Showdown)',
+        ended: '比牌结算 (Settle)'
+      };
+      const phaseName = phaseNames[state.phase];
+      if (phaseName) {
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        window.actionLogs = window.actionLogs || [];
+        window.actionLogs.push({
+          time: timeStr,
+          text: `🔔 --- 进入 ${phaseName} ---`,
+          action: 'system',
+          type: 'system'
+        });
+        this._renderActionLogs();
+      }
+      this._lastPhase = state.phase;
+    }
+
+    // 3. 渲染左侧实时筹码榜
+    this._renderLeaderboard(state);
+
     // 调试辅助：核心状态变化输出
     console.log(`%c[GameState] 收到状态快照 | 手牌ID: ${state.handId} | 阶段: ${state.phase} | 底池: ${state.pot} | 公共牌: ${state.communityCards?.map(c => c.rank+c.suit).join(' ') || '无'}`, 'color: #00bcd4; font-weight: bold;');
 
@@ -849,6 +921,13 @@ const App = {
   /** 新手牌开始，重置桌面 */
   startNewHand() {
     console.log('%c[Game] ====================== 新局开始 ======================', 'color: #e040fb; font-weight: bold; font-size: 14px;');
+    
+    // 清空当局行动日志与位置缓存
+    window.actionLogs = [];
+    this._renderActionLogs();
+    this._lastPhase = null;
+    window.seatPositions = {};
+
     // 新手牌发牌音效
     AudioEngine.playSFX('deal');
 
@@ -923,7 +1002,18 @@ const App = {
     const seat = document.getElementById(`seat-${player.seatId}`);
     if (!seat) return;
 
-    seat.querySelector('.seat-name').textContent      = player.username;
+    const nameEl = seat.querySelector('.seat-name');
+    nameEl.textContent = player.username;
+    const badgeRole = window.seatPositions && window.seatPositions[player.seatId];
+    if (badgeRole && player.status !== 'waiting') {
+      let badgeHtml = '';
+      if (badgeRole === 'D/SB') {
+        badgeHtml = `<span class="pos-badge d">D</span><span class="pos-badge sb">SB</span>`;
+      } else {
+        badgeHtml = `<span class="pos-badge ${badgeRole.toLowerCase()}">${badgeRole}</span>`;
+      }
+      nameEl.innerHTML = player.username + badgeHtml;
+    }
     seat.querySelector('.seat-chips-val').textContent = `${player.chips}`;
     seat.querySelector('.avatar-initials').textContent = player.username.charAt(0).toUpperCase();
 
@@ -1005,6 +1095,29 @@ const App = {
 
     const seat = document.getElementById(`seat-${data.seatId}`);
     if (!seat) return;
+
+    // 追加至当局行动日志中
+    let username = '';
+    if (data.seatId === 0 && this.state.user) {
+      username = this.state.user.username;
+    } else {
+      const activePlayer = this.state.game?.players?.find(p => p.seatId === data.seatId);
+      username = activePlayer ? activePlayer.username : `席位 ${data.seatId}`;
+    }
+    const logLabels = { fold: '弃牌 ✖️', check: '过牌 ✊', call: `跟注 ${data.amount} 💰`, raise: `加注 ${data.amount} 🚀`, allin: '全押 🔥' };
+    const actionText = logLabels[data.action] || data.action;
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    window.actionLogs = window.actionLogs || [];
+    window.actionLogs.push({
+      time: timeStr,
+      username: username,
+      action: data.action,
+      text: `${username} ${actionText}`,
+      type: 'action'
+    });
+    this._renderActionLogs();
+
     const labels = { fold: '弃牌', check: '过牌', call: `跟注 ${data.amount}`, raise: `加注 ${data.amount}`, allin: '全押' };
     
     // 1. 头像下方的常驻动作文本（短暂停留后消除）
@@ -1122,6 +1235,77 @@ const App = {
     // TODO: 实现 toast 弹窗
   },
 
+  _renderLeaderboard(state) {
+    const listEl = document.getElementById('leaderboard-list');
+    if (!listEl) return;
+
+    if (!state.players || state.players.length === 0) {
+      listEl.innerHTML = '<div class="leaderboard-empty">暂无玩家数据</div>';
+      return;
+    }
+
+    // Filter and sort active/seated players by chips descending
+    const rankedPlayers = state.players
+      .filter(p => p.status !== 'waiting')
+      .sort((a, b) => b.chips - a.chips);
+
+    if (rankedPlayers.length === 0) {
+      listEl.innerHTML = '<div class="leaderboard-empty">暂无玩家数据</div>';
+      return;
+    }
+
+    listEl.innerHTML = rankedPlayers.map((p, index) => {
+      const rank = index + 1;
+      let rankClass = '';
+      let badge = `${rank}`;
+      if (rank === 1) { rankClass = 'rank-1'; badge = '🥇'; }
+      else if (rank === 2) { rankClass = 'rank-2'; badge = '🥈'; }
+      else if (rank === 3) { rankClass = 'rank-3'; badge = '🥉'; }
+
+      return `
+        <div class="leader-row ${rankClass}">
+          <div class="leader-left">
+            <div class="leader-rank-badge">${badge}</div>
+            <span class="leader-name">${p.username}</span>
+          </div>
+          <span class="leader-chips">${p.chips}</span>
+        </div>
+      `;
+    }).join('');
+  },
+
+  _renderActionLogs() {
+    const listEl = document.getElementById('action-log-list');
+    if (!listEl) return;
+
+    if (!window.actionLogs || window.actionLogs.length === 0) {
+      listEl.innerHTML = '<div class="log-empty">等待玩家行动...</div>';
+      return;
+    }
+
+    listEl.innerHTML = window.actionLogs.map(log => {
+      let logClass = '';
+      if (log.type === 'system') {
+        logClass = 'system';
+      } else {
+        logClass = log.action; // 'fold', 'check', 'call', 'raise', 'allin'
+      }
+
+      return `
+        <div class="log-row ${logClass}">
+          <span class="log-time">${log.time}</span>
+          <span class="log-text">${log.text}</span>
+        </div>
+      `;
+    }).join('');
+
+    // Auto-scroll action log
+    const contentEl = listEl.closest('.sidebar-content');
+    if (contentEl) {
+      contentEl.scrollTop = contentEl.scrollHeight;
+    }
+  },
+
   // ── 私有辅助 ──────────────────────────────────────
 
   _updateHero(player) {
@@ -1162,6 +1346,20 @@ const App = {
         heroSeat.classList.add('offline');
       } else {
         heroSeat.classList.remove('offline');
+      }
+    }
+    const heroNameEl = document.getElementById('hero-name');
+    if (heroNameEl && this.state.user) {
+      heroNameEl.textContent = this.state.user.username;
+      const badgeRole = window.seatPositions && window.seatPositions[0];
+      if (badgeRole && player.status !== 'waiting') {
+        let badgeHtml = '';
+        if (badgeRole === 'D/SB') {
+          badgeHtml = `<span class="pos-badge d">D</span><span class="pos-badge sb">SB</span>`;
+        } else {
+          badgeHtml = `<span class="pos-badge ${badgeRole.toLowerCase()}">${badgeRole}</span>`;
+        }
+        heroNameEl.innerHTML = this.state.user.username + badgeHtml;
       }
     }
 
@@ -1444,6 +1642,52 @@ const App = {
     const winDetails = winners.map(w => `${w.username} (${w.categoryName || '未知牌型'})`).join(', ');
     detailEl.textContent = winDetails ? `赢家牌型: ${winDetails}` : '本局无赢家（全员弃牌或平分）';
 
+    // 赢家摊牌手牌可视化展示
+    const cardsEl = document.getElementById('settlement-winner-cards');
+    if (cardsEl) {
+      cardsEl.innerHTML = '';
+      cardsEl.style.display = 'none';
+
+      if (results.hands && winners.length > 0) {
+        let hasCards = false;
+        const flexContainer = document.createElement('div');
+        flexContainer.className = 'settlement-winner-cards-container';
+        
+        winners.forEach(w => {
+          const handData = results.hands[w.seatId];
+          if (handData && Array.isArray(handData.cards) && handData.cards.length > 0) {
+            hasCards = true;
+            const winnerHandDiv = document.createElement('div');
+            winnerHandDiv.className = 'winner-hand-block';
+            
+            const label = document.createElement('div');
+            label.className = 'winner-hand-label';
+            label.innerHTML = `👑 <strong>${w.username}</strong> 胜出牌组 (${handData.categoryName || '未知牌型'}):`;
+            winnerHandDiv.appendChild(label);
+            
+            const cardRow = document.createElement('div');
+            cardRow.className = 'winner-card-row';
+            
+            handData.cards.forEach(c => {
+              const cardDiv = document.createElement('div');
+              const isRed = c.suit === '♥' || c.suit === '♦';
+              cardDiv.className = `card sm deal ${isRed ? 'red' : ''}`;
+              cardDiv.innerHTML = this._cardInnerHTML(c);
+              cardRow.appendChild(cardDiv);
+            });
+            
+            winnerHandDiv.appendChild(cardRow);
+            flexContainer.appendChild(winnerHandDiv);
+          }
+        });
+
+        if (hasCards) {
+          cardsEl.appendChild(flexContainer);
+          cardsEl.style.display = 'block';
+        }
+      }
+    }
+
     // 3. 填充所有选手的滚动盈亏列表
     subDetailsEl.innerHTML = results.summary.map(s => {
       const fmtP = s.profit >= 0 ? `+${s.profit}` : `${s.profit}`;
@@ -1461,7 +1705,7 @@ const App = {
     progressEl.style.width = '100%';
     // 强制触发 DOM 重绘以使过渡动效生效
     progressEl.offsetHeight; 
-    progressEl.style.transition = 'width 5.3s linear';
+    progressEl.style.transition = 'width 7.5s linear';
     progressEl.style.width = '0%';
 
     // 5. 显现弹窗
@@ -1471,7 +1715,7 @@ const App = {
     if (this._settlementTimer) clearTimeout(this._settlementTimer);
     this._settlementTimer = setTimeout(() => {
       overlay.classList.remove('active');
-    }, 5500);
+    }, 7700);
   },
 };
 

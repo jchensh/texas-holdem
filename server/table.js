@@ -488,7 +488,7 @@ class Table {
       this.cleanupOfflinePlayers();
       this.syncLobbyState();
       this.checkAutoStart();
-    }, 6000);
+    }, 8000);
   }
 
   /**
