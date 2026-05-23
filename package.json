@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "export-git": "node scripts/export-git-history.js"
   },
   "engines": {
     "node": ">=20.0.0"

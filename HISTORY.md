@@ -1,7 +1,7 @@
 # 开发日志（HISTORY）
 
 本文件记录每一步的范围、产出、关键决策。
-**新会话恢复时先读本文件 + `CLAUDE.md` 就能拿到完整上下文。**
+**新会话恢复时先读本文件 + `CLAUDE.md` / `AGENTS.md` 就能拿到完整上下文。**
 
 格式约定：每个 step 一节，标注日期、commit、产出文件、决策记录。
 
@@ -463,6 +463,41 @@ index.html
 
 ---
 
+## Step 9.5 — 多 Agent Git 分支与 Worktree 协作体系（2026-05-24，commit 本次提交）
+
+**目标**：项目后续会由 Codex、Claude Code、Antigravity 继续共同开发。为避免多个 coding agent 在同一个工作目录里互相覆盖未提交变更，建立稳定的 Git 分支策略与独立 worktree 工作区布局。
+
+**产出**：
+- Git 分支：
+  - `main` — 稳定主干，保持可部署状态。
+  - `next` — 集成分支，所有 agent 的任务分支先合入这里，测试通过并经人工决策后再合入 `main`。
+  - `codex/work` — Codex 起步工作分支。
+  - `claude/work` — Claude Code 起步工作分支。
+  - `antigravity/work` — Antigravity 起步工作分支。
+- Git worktree：
+  - `F:/antigravityProject` → `main`
+  - `F:/antigravityProject-codex` → `codex/work`
+  - `F:/antigravityProject-claude` → `claude/work`
+  - `F:/antigravityProject-antigravity` → `antigravity/work`
+- `CLAUDE.md` / `AGENTS.md` — 增补统一的分支策略、worktree 使用说明、合并流程、环境配置边界。
+- `scripts/export-git-history.js` + `npm run export-git` — 增加可选的 Git 提交历史导出工具；生成文件 `GIT_HISTORY_CHANGELOG.md` 是本地可再生文档，不纳入版本控制。
+- `.gitignore` — 忽略 `GIT_HISTORY_CHANGELOG.md`，避免生成物污染提交列表。
+
+**关键决策**：
+- **不要让多个 agent 共享同一个工作目录开发**。一个 Git 工作目录同一时间只能 checkout 一个分支，多 agent 共用 `F:/antigravityProject` 会导致未提交变更互相覆盖。以后各 agent 默认进入自己的 worktree 目录工作。
+- **每个任务仍应再切短生命周期任务分支**。`codex/work` / `claude/work` / `antigravity/work` 只是起步分支；正式任务建议从 `next` 派生为 `codex/<task>`、`claude/<task>`、`antigravity/<task>`。
+- **`main` 不直接承接实验开发**。agent 任务分支先合入 `next`，跑测试、人工验收后再由 `next` 合入 `main`。
+- **环境差异不靠长期分叉分支保存**。线上密钥、`.env`、VM Nginx/PM2 实际配置、SQLite 数据库文件不进入 Git；可提交 `.env.example`、部署模板和部署文档。游戏功能代码要经常从 `next`/`main` 合并同步。
+- **`HISTORY.md` 由合并者统一维护**。多 agent 同时改文件尾部很容易冲突，重要 step 在合入 `next` 或 `main` 时统一追加记录。
+
+**操作记录**：
+- 已从 `main` 创建 `next`。
+- 已从 `next` 创建 `codex/work`、`claude/work`、`antigravity/work`。
+- 已创建三个独立 worktree 目录，分别给三个 agent 使用。
+- 保留旧 worktree `F:/ClaudeCodeProject/.claude/worktrees/elegant-perlman-a6c72c`，未做清理。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -480,6 +515,7 @@ index.html
 | 9.2 | 牌型规则卡牌化展开、结算赢家底牌物化、HUD悬浮重构与高DPI字号放大 | ✅ commit `083389b` |
 | 9.3 | 牌局显示和交互优化需求（字号加大、位置 badges 样式、手牌 Show/Muck、5+2 结算动画） + 致命 JavaScript crash Bug 修复 | ✅ commit `8986e8a` |
 | 9.4 | 核心游戏引擎致命漏洞修复、皇家同花顺强化与 Option A 高级扑克规则集成 | ✅ commit `5d31204` |
+| 9.5 | 多 Agent Git 分支与 worktree 协作体系 | ✅ commit 本次提交 |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
@@ -487,7 +523,7 @@ index.html
 ## 给下一次会话的提示
 
 1. 先读本文件 → 知道做到哪步
-2. 再读 `CLAUDE.md` → 知道项目规范和前端结构约定
+2. 再读 `CLAUDE.md` / `AGENTS.md` → 知道项目规范、前端结构约定和 Git 分支/worktree 协作策略
 3. `git log --oneline` 看最新进度
 4. 如果"上一步在做什么"和 HISTORY.md 不一致，**以代码和 git log 为准**，并更新本文件
-
+5. 多 agent 开发时，不要共用 `F:/antigravityProject` 工作目录；Codex / Claude / Antigravity 分别使用自己的 worktree

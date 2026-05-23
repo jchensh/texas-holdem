@@ -11,6 +11,9 @@ data/*.db-shm
 *.log
 logs/
 
+# 本地生成的 Git 提交历史文档
+GIT_HISTORY_CHANGELOG.md
+
 # 环境变量
 .env
 .env.*

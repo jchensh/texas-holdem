@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Poker Night
 
@@ -92,7 +92,7 @@ F:\antigravityProject-antigravity  # antigravity/work
 ```
 git switch next
 git pull
-git switch -c claude/<task-name>
+git switch -c codex/<task-name>
 ```
 
 分支命名约定：
@@ -118,7 +118,7 @@ git switch -c claude/<task-name>
 - 线上特定差异优先用环境变量或部署配置表达，不用长期分叉分支保存。
 - `GIT_HISTORY_CHANGELOG.md` 是 `npm run export-git` 生成的本地文档，不纳入版本控制。
 
-## Claude Code 工作约定
+## Codex 工作约定
 
 ### 目标驱动执行（Goal-Driven Execution）
 
@@ -128,4 +128,4 @@ git switch -c claude/<task-name>
 2. 实现代码 → 让测试由红转绿
 3. 跑全量测试 → 确认没有 regression
 
-把模糊任务（如"实现牌型判断"）转换为有验收标准的循环（"让这 9 个测试通过"），让 Claude Code 在明确的成功标准下自循环，减少对人工逐行 review 的依赖。
+把模糊任务（如"实现牌型判断"）转换为有验收标准的循环（"让这 9 个测试通过"），让 Codex 在明确的成功标准下自循环，减少对人工逐行 review 的依赖。
