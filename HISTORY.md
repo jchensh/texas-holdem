@@ -314,7 +314,7 @@ index.html
 
 ---
 
-## Step 9 — 实时明牌管理后台与系统日志终端开发（2026-05-23，commit `60c3fe8`）
+## Step 9 — 实时明牌管理后台与系统日志终端开发（2026-05-23，commit `75ceac8`）
 
 **目标**：开发一个独立、低延迟、高保真的管理员后台系统。支持全场底牌绝对明牌监视、大厅在线统计、SQLite 审计流水流水，AFK/异常玩家一键 Kick 清障，并在控制台设计实时 Linux 风格系统日志滚动终端。
 
@@ -352,7 +352,7 @@ index.html
 | 6 | 引擎接入房间，广播 `game_state` / `your_turn` / `hand_result`，落库 `hand_history`、更新 `chips` | ✅ commit `021200d` |
 | 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ✅ commit `3a39b86` |
 | 8 | 客户端视觉美化、高保真音效、粒子弹力反馈与离线自动托管机制优化 | ✅ commit `60c3fe8` |
-| 9 | 独立实时明牌管理后台与控制台实时日志终端 | ✅ commit `60c3fe8` |
+| 9 | 独立实时明牌管理后台与控制台实时日志终端 | ✅ commit `75ceac8` |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
