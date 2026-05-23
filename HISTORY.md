@@ -569,6 +569,30 @@ index.html
 
 ---
 
+## Step 9.8 — 未来前端与后端架构路线文档（2026-05-24，commit 本次提交）
+
+**目标**：把关于项目未来演进的讨论沉淀成独立路线文档，避免长期构想散落在会话上下文里；同时明确当前最重要的近期目标不是继续扩功能或重写前端，而是先完成 V1 部署上线。
+
+**产出**：
+- `FutureRoadmap.md`（新）—
+  - 总结短中长期路线：V1 部署上线、V1.5 前端治理、V2 React + TypeScript 应用壳、V2.5+ PixiJS 牌桌渲染层。
+  - 解释 DOM、React、PixiJS 在长期架构里的职责边界。
+  - 明确 PixiJS + DOM/React 是比直接上 Cocos / Godot 更贴合网页德扑的长期方案。
+  - 记录后端配套升级方向：Socket 协议文档化、`handId + seq`、`game_state` 与 `game_event` 分离、`GET /api/table/state`、timeline 复盘数据、未来 `TableManager` 多桌化。
+  - 明确 PixiJS 只负责动画演出，服务端仍是唯一游戏真相来源。
+
+**关键决策**：
+- **当前第一优先级仍是 V1 部署上线**。现阶段最重要的是把已有单桌德州扑克、账号、Socket.IO、SQLite 历史、断线重连和管理能力在谷歌云香港 VM 上跑通，而不是立刻引入 React、PixiJS 或游戏引擎重构。
+- **长期前端推荐走 PixiJS + DOM/React 混合架构**。React/DOM 负责登录、历史、后台、HUD、按钮、弹窗等网页 UI；PixiJS 负责牌桌、卡牌、筹码、粒子、发牌与结算演出。
+- **后端必须保持裁判地位**。所有规则、行动合法性、结算、筹码、历史落库都由服务端决定；前端渲染层只消费服务端快照和事件流。
+- **大重构排在部署验证之后**。V1 之前不做全量 React 重写、不引入 PixiJS 到主流程、不做 Cocos/Godot、不做多桌。
+
+---
+
+**当前主目标提醒**：下一阶段最重要的主线是完成 V1 的谷歌云香港 VM 部署上线工作（PM2 守护、Nginx WebSocket 反代、HTTPS/安全组、生产环境变量、SQLite 数据与备份、线上 smoke test）。后续前端框架与游戏渲染层升级应在 V1 稳定可玩之后再进入实施。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -589,6 +613,7 @@ index.html
 | 9.5 | 多 Agent Git 分支与 worktree 协作体系 | ✅ commit 本次提交 |
 | 9.6 | GitHub 远端仓库初始化与 GitHub CLI 配置 | ✅ commit 本次提交 |
 | 9.7 | 玩家离线/重连全局强通知弹窗（补齐 Step 8 遗留） | ✅ commit 本次提交 |
+| 9.8 | 未来前端与后端架构路线文档 `FutureRoadmap.md` | ✅ commit 本次提交 |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
