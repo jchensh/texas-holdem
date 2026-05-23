@@ -202,6 +202,7 @@ input  { font-family: inherit; outline: none; }
   background:
     radial-gradient(ellipse at center, #0f1f12 0%, var(--bg) 70%);
   overflow: hidden;
+  position: relative; /* added so absolute sidebars can position relative to game-main */
 }
 
 .table-scene {
@@ -1667,6 +1668,273 @@ input  { font-family: inherit; outline: none; }
   display: flex;
   gap: 6px;
   justify-content: center;
+}
+
+/* 🏆 实时筹码榜 & 本局行动日志浮窗 */
+.game-sidebar {
+  position: absolute;
+  width: 230px;
+  height: 220px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.5),
+    0 0 15px rgba(201, 168, 76, 0.05);
+  z-index: 100;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.game-sidebar:hover {
+  border-color: rgba(201, 168, 76, 0.35);
+  box-shadow: 
+    0 12px 35px rgba(0, 0, 0, 0.6),
+    0 0 25px rgba(201, 168, 76, 0.15);
+}
+
+/* 浮动在左上角与右上角 */
+.left-sidebar {
+  left: 20px;
+  top: 20px;
+}
+
+.right-sidebar {
+  right: 20px;
+  top: 20px;
+  width: 250px; /* 行动日志稍微宽一点 */
+}
+
+/* 侧边栏头部 */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-icon {
+  font-size: 13px;
+}
+
+.sidebar-header h3 {
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-light);
+  letter-spacing: 0.5px;
+}
+
+/* 侧边栏内容区 */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  min-height: 0;
+}
+
+/* 自定义侧边栏滚动条 */
+.sidebar-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 168, 76, 0.4);
+}
+
+/* 🏆 排行榜样式 */
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.leader-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: 11px;
+  transition: background 0.15s;
+}
+
+.leader-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.leader-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.leader-rank-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  color: var(--text-muted);
+}
+
+.leader-name {
+  color: var(--text-light);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leader-chips {
+  font-weight: 800;
+  color: var(--gold-light);
+}
+
+/* 前三名高亮框 */
+.leader-row.rank-1 {
+  border-color: rgba(255, 215, 0, 0.35);
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 215, 0, 0.02) 100%);
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.1);
+}
+.leader-row.rank-1 .leader-name {
+  color: #ffe082;
+  text-shadow: 0 0 4px rgba(255, 215, 0, 0.25);
+}
+.leader-row.rank-1 .leader-chips {
+  color: #ffd54f;
+  text-shadow: 0 0 4px rgba(255, 215, 0, 0.3);
+}
+
+.leader-row.rank-2 {
+  border-color: rgba(224, 224, 224, 0.25);
+  background: linear-gradient(90deg, rgba(224, 224, 224, 0.06) 0%, rgba(224, 224, 224, 0.01) 100%);
+}
+
+.leader-row.rank-3 {
+  border-color: rgba(205, 127, 50, 0.25);
+  background: linear-gradient(90deg, rgba(205, 127, 50, 0.06) 0%, rgba(205, 127, 50, 0.01) 100%);
+}
+
+.leaderboard-empty, .log-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px 0;
+  font-style: italic;
+}
+
+/* ⚡ 行动日志样式 */
+.action-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.log-row {
+  display: flex;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.01);
+  font-size: 10.5px;
+  border-left: 2px solid transparent;
+  line-height: 1.4;
+  animation: fadeInLog 0.25s ease-out forwards;
+}
+
+@keyframes fadeInLog {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.log-time {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 9.5px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.log-text {
+  color: var(--text-light);
+  word-break: break-all;
+}
+
+/* 不同动作发光竖边条 */
+.log-row.fold {
+  border-left-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.005);
+}
+.log-row.fold .log-text {
+  color: var(--text-muted);
+}
+
+.log-row.check {
+  border-left-color: #64b5f6;
+  background: rgba(100, 181, 246, 0.03);
+}
+
+.log-row.call {
+  border-left-color: #81c784;
+  background: rgba(129, 199, 132, 0.03);
+}
+
+.log-row.raise {
+  border-left-color: var(--gold);
+  background: rgba(201, 168, 76, 0.04);
+}
+.log-row.raise .log-text {
+  color: #ffe082;
+}
+
+.log-row.allin {
+  border-left-color: var(--red);
+  background: rgba(239, 83, 80, 0.06);
+  box-shadow: 0 0 8px rgba(239, 83, 80, 0.1);
+}
+.log-row.allin .log-text {
+  color: #ff8a80;
+  font-weight: 700;
+  text-shadow: 0 0 4px rgba(239, 83, 80, 0.2);
+}
+
+.log-row.system {
+  border-left-color: rgba(201, 168, 76, 0.4);
+  background: rgba(201, 168, 76, 0.03);
+}
+.log-row.system .log-text {
+  color: var(--gold-light);
+  font-weight: 500;
+}
+
+/* 响应式适配：在屏幕太小时隐藏浮窗，防止遮挡核心牌桌 */
+@media (max-width: 1380px) {
+  .game-sidebar {
+    display: none !important;
+  }
 }
 
 
