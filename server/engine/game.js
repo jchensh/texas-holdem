@@ -16,7 +16,7 @@
  *   'allin'  筹码归零但仍参与摊牌
  */
 const { createShuffledDeck, deal } = require('./deck');
-const { evaluate7, compareScore } = require('./hand-rank');
+const { evaluate7, compareScore, evaluate5, combinations, CATEGORY, CATEGORY_NAME } = require('./hand-rank');
 const { computePots, distribute } = require('./pot');
 
 const PHASES_IN_ORDER = ['preflop', 'flop', 'turn', 'river', 'showdown'];
@@ -45,6 +45,7 @@ class Game {
       totalBet:  0,
       currentBet: 0,
       hasActedThisRound: false,
+      isRaiseLocked: false,
     }));
 
     if (!this.players.some(p => p.seatId === dealerSeat)) {
@@ -60,6 +61,12 @@ class Game {
     this._dealHoleCards();
     this._postBlinds();
     this._setFirstToActPreflop();
+
+    // 如果可下注的活跃玩家少于等于 1 个，直接发牌进入摊牌
+    const active = this.players.filter(p => p.status === 'active');
+    if (active.length <= 1) {
+      this._runOutAndShowdown();
+    }
   }
 
   // ── 工具 ──────────────────────────────────────────
@@ -113,14 +120,34 @@ class Game {
       // heads-up：庄家发 SB，对手发 BB
       sbSeat = this.dealerSeat;
       bbSeat = order[0];
+
+      const sbPlayer = this._playerBySeat(sbSeat);
+      const bbPlayer = this._playerBySeat(bbSeat);
+      const maxBlind = Math.min(sbPlayer.chips, bbPlayer.chips);
+
+      if (maxBlind < this.bigBlind) {
+        // 筹码不足，同比例削减盲注
+        const effectiveBB = maxBlind;
+        const effectiveSB = Math.min(this.smallBlind, Math.ceil(effectiveBB / 2));
+
+        this._forceBet(sbSeat, effectiveSB);
+        this._forceBet(bbSeat, effectiveBB);
+        this.currentBet = effectiveBB;
+        this.minRaise   = effectiveBB;
+      } else {
+        this._forceBet(sbSeat, this.smallBlind);
+        this._forceBet(bbSeat, this.bigBlind);
+        this.currentBet = this.bigBlind;
+        this.minRaise   = this.bigBlind;
+      }
     } else {
       sbSeat = order[0];
       bbSeat = order[1];
+      this._forceBet(sbSeat, this.smallBlind);
+      this._forceBet(bbSeat, this.bigBlind);
+      this.currentBet = this.bigBlind;
+      this.minRaise   = this.bigBlind;
     }
-    this._forceBet(sbSeat, this.smallBlind);
-    this._forceBet(bbSeat, this.bigBlind);
-    this.currentBet = this.bigBlind;
-    this.minRaise   = this.bigBlind;
     this._sbSeat = sbSeat;
     this._bbSeat = bbSeat;
   }
@@ -174,6 +201,7 @@ class Game {
 
       case 'check':
         if (p.currentBet < this.currentBet) throw new Error('当前需要跟注，不能过牌');
+        p.isRaiseLocked = true;
         logEntry = { seatId, type: 'check' };
         break;
 
@@ -185,11 +213,15 @@ class Game {
         p.totalBet   += pay;
         p.currentBet += pay;
         if (p.chips === 0) p.status = 'allin';
+        p.isRaiseLocked = true;
         logEntry = { seatId, type: 'call', amount: pay };
         break;
       }
 
       case 'raise': {
+        if (p.isRaiseLocked) {
+          throw new Error('当前行动未被重新打开，不能加注');
+        }
         // action.amount = 加注到的"本街投入"目标
         const target = action.amount;
         if (!Number.isInteger(target) || target <= this.currentBet) {
@@ -208,14 +240,19 @@ class Game {
         p.totalBet  += need;
         p.currentBet = target;
         this.currentBet = target;
-        // all-in 小于 minRaise 不更新 minRaise，也不重新打开行动（V1 简化：一律重新打开）
-        this.minRaise   = Math.max(this.minRaise, increase);
-        // 重新打开其他 active 玩家的行动
-        for (const o of this.players) {
-          if (o.seatId !== p.seatId && o.status === 'active') {
-            o.hasActedThisRound = false;
+
+        const isCompleteRaise = increase >= this.minRaise;
+        if (isCompleteRaise) {
+          this.minRaise = increase;
+          // 重新打开所有其他 active 玩家的行动，并解除他们的 raise-lock
+          for (const o of this.players) {
+            if (o.seatId !== p.seatId && o.status === 'active') {
+              o.hasActedThisRound = false;
+              o.isRaiseLocked = false;
+            }
           }
         }
+        p.isRaiseLocked = true;
         if (p.chips === 0) p.status = 'allin';
         logEntry = { seatId, type: 'raise', amount: target, increase };
         break;
@@ -254,10 +291,13 @@ class Game {
   }
 
   _advancePhase() {
-    // 清算本街：currentBet 归零，重置 hasActedThisRound
+    // 清算本街：currentBet 归零，重置 hasActedThisRound 与 isRaiseLocked
     for (const p of this.players) {
       p.currentBet = 0;
-      if (p.status === 'active') p.hasActedThisRound = false;
+      if (p.status === 'active') {
+        p.hasActedThisRound = false;
+        p.isRaiseLocked = false;
+      }
     }
     this.currentBet = 0;
     this.minRaise   = this.bigBlind;
@@ -353,6 +393,7 @@ class Game {
       const seven = [...p.holeCards, ...this.communityCards];
       hands.set(p.seatId, evaluate7(seven));
     }
+    const order = this._seatsAfter(this.dealerSeat);
     const pots = computePots(this._buildContributors());
     const payouts = distribute(pots, (eligibleIds) => {
       let best = null;
@@ -366,6 +407,7 @@ class Game {
           winners.push(id);
         }
       }
+      winners.sort((a, b) => order.indexOf(a) - order.indexOf(b));
       return winners;
     });
     return this._finalize('showdown', hands, payouts, pots);
@@ -373,7 +415,10 @@ class Game {
 
   _finishByFold(lastStanding) {
     const pots = computePots(this._buildContributors());
-    const payouts = distribute(pots, () => [lastStanding.seatId]);
+    const payouts = distribute(pots, (eligibleIds) => {
+      if (eligibleIds.length === 1) return eligibleIds;
+      return [lastStanding.seatId];
+    });
     return this._finalize('fold', new Map(), payouts, pots);
   }
 
@@ -395,7 +440,6 @@ class Game {
         try {
           const combined = [...viewerPlayer.holeCards, ...this.communityCards];
           let bestEval = null;
-          const { evaluate5, combinations, compareScore, CATEGORY_NAME } = require('./hand-rank');
           for (const idxs of combinations(combined.length, 5)) {
             const sub = idxs.map(i => combined[i]);
             const r = evaluate5(sub);
@@ -403,7 +447,8 @@ class Game {
               bestEval = r;
             }
           }
-          heroHandType = CATEGORY_NAME[bestEval.category];
+          const isRoyal = bestEval.category === CATEGORY.STRAIGHT_FLUSH && bestEval.tiebreakers[0] === 14;
+          heroHandType = isRoyal ? '皇家同花顺' : CATEGORY_NAME[bestEval.category];
         } catch (e) {
           console.error('[Game] 实时牌型分析失败:', e);
         }

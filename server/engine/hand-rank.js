@@ -145,9 +145,10 @@ function evaluate7(cards) {
       best = r;
     }
   }
+  const isRoyal = best.category === CATEGORY.STRAIGHT_FLUSH && best.tiebreakers[0] === 14;
   return {
     category:     best.category,
-    categoryName: CATEGORY_NAME[best.category],
+    categoryName: isRoyal ? '皇家同花顺' : CATEGORY_NAME[best.category],
     tiebreakers:  best.tiebreakers,
     cards:        best.cards,
     score:        [best.category, ...best.tiebreakers],

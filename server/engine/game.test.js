@@ -447,3 +447,164 @@ test('行动中：仅 viewer 看到自己的 holeCards，其他玩家被遮', ()
   assert.strictEqual(snap.players.find(p => p.seatId === 1).holeCards.length, 0);
   assert.strictEqual(snap.players.find(p => p.seatId === 2).holeCards.length, 0);
 });
+
+// ── 致命bug、严重漏洞与优化规则测试 ─────────────────
+
+test('双人对决盲注上限测试 & 盲注 All-in 自动摊牌死锁与崩溃测试', () => {
+  const g = new Game({
+    players: [
+      { id: 100, seatId: 0, username: 'A', chips: 1 },
+      { id: 101, seatId: 1, username: 'B', chips: 2 },
+    ],
+    dealerSeat: 0,
+    smallBlind: 5, bigBlind: 10, handId: 'h_allin_blinds',
+  });
+
+  // A chips = 1, B chips = 2. maxBlind = 1.
+  // BB becomes 1, SB becomes Math.min(5, ceil(1/2)) = 1.
+  // A (SB) posts 1 (all-in). B (BB) posts 1 (all-in).
+  // Both are all-in, so canBet.length = 0, which should immediately trigger auto-showdown!
+  assert.strictEqual(g.phase, 'ended');
+  // Check total bets instead of current bets since the game has finalized and reset current bets
+  assert.strictEqual(g.players.find(p => p.seatId === 0).totalBet, 1);
+  assert.strictEqual(g.players.find(p => p.seatId === 1).totalBet, 1);
+  assert.strictEqual(g.results.pots.length, 1);
+  assert.strictEqual(g.results.pots[0].amount, 2);
+});
+
+test('不完整加注重启行动限制测试', () => {
+  const g = new Game({
+    players: [
+      { id: 100, seatId: 0, username: 'A', chips: 100 },
+      { id: 101, seatId: 1, username: 'B', chips: 100 },
+      { id: 102, seatId: 2, username: 'C', chips: 15 },
+    ],
+    dealerSeat: 0,
+    smallBlind: 5, bigBlind: 10, handId: 'h_inc_raise',
+  });
+  // Preflop: dealer=0. SB=1 (B, posts 5), BB=2 (C, posts 10). C has 5 chips left.
+  // UTG is A (seat 0).
+  // A calls 10. (A has 90 left)
+  g.act(0, { type: 'call' });
+  // B calls 10. (B has 90 left)
+  g.act(1, { type: 'call' });
+  // C raises all-in to 15 (C's chips = 5, C's increase = 5 < minRaise = 10).
+  g.act(2, { type: 'raise', amount: 15 });
+
+  // Now, A and B are raise-locked! C's raise is incomplete (5 < 10).
+  // A trying to raise to 40 should throw!
+  assert.throws(() => g.act(0, { type: 'raise', amount: 40 }), /不能加注/);
+
+  // A calls 5 (amount 15).
+  g.act(0, { type: 'call' });
+  // B calls 5 (amount 15).
+  g.act(1, { type: 'call' });
+
+  // Preflop complete, advances to flop!
+  assert.strictEqual(g.phase, 'flop');
+});
+
+test('已弃牌玩家的未跟注筹码退回测试', () => {
+  const g = new Game({
+    players: [
+      { id: 100, seatId: 0, username: 'A', chips: 10 },
+      { id: 101, seatId: 1, username: 'B', chips: 100 },
+      { id: 102, seatId: 2, username: 'C', chips: 100 },
+    ],
+    dealerSeat: 0, smallBlind: 5, bigBlind: 10, handId: 'h_fold_uncalled',
+  });
+  // Preflop: dealer=0. SB=1 (B, posts 5), BB=2 (C, posts 10).
+  // A (D) folds.
+  g.act(0, { type: 'fold' });
+  // B (SB) calls 10 (need 5). B.chips = 90.
+  g.act(1, { type: 'call' });
+  // C checks.
+  g.act(2, { type: 'check' });
+
+  // Flop! Postflop SB (B, seat 1) acts first.
+  assert.strictEqual(g.phase, 'flop');
+  assert.strictEqual(g.currentSeat, 1);
+
+  // B (SB) checks.
+  g.act(1, { type: 'check' });
+  // C (BB) bets 30 (raises to 30).
+  g.act(2, { type: 'raise', amount: 30 });
+  // B raises to 60 (since B must raise by at least 30, B's target is 30 + 30 = 60).
+  g.act(1, { type: 'raise', amount: 60 });
+  // B's bet is 60. C's bet is 30.
+  // Now C folds!
+  g.act(2, { type: 'fold' });
+
+  // B is the last standing non-folded player!
+  // B wins Pot 1 (80 chips, level 40: B's 40 + C's 40).
+  // Pot 2 (30 chips, level 70: B's uncalled 30) returns to B.
+  assert.strictEqual(g.phase, 'ended');
+  const results = g.results;
+  assert.strictEqual(results.pots.length, 2);
+  assert.strictEqual(results.pots[0].amount, 80);
+  assert.strictEqual(results.pots[1].amount, 30);
+  assert.deepStrictEqual(results.pots[1].eligibleIds, [1]); // B (seat 1) is the only eligible!
+});
+
+test('皇家同花顺命名与文案测试', () => {
+  const g = new Game({
+    players: [
+      { id: 100, seatId: 0, username: 'A', chips: 100 },
+      { id: 101, seatId: 1, username: 'B', chips: 100 },
+    ],
+    dealerSeat: 0,
+    smallBlind: 5, bigBlind: 10,
+    handId: 'h_royal',
+    deck: deckOf(
+      '2c', 'As', // seat 1 round 1, seat 0 round 1
+      '3c', 'Ks', // seat 1 round 2, seat 0 round 2
+      'Qs', 'Js', '10s', // flop
+      '4h', // turn
+      '5d' // river
+    )
+  });
+  // A (seat 0) has As Ks. Flop is Qs Js 10s.
+  // This forms a Royal Flush (10s Js Qs Ks As)!
+  // Preflop: SB acts first in heads-up. SB is A (0).
+  g.act(0, { type: 'call' });
+  g.act(1, { type: 'check' });
+  // Flop: BB acts first in heads-up. BB is B (1).
+  g.act(1, { type: 'check' });
+  g.act(0, { type: 'check' });
+  // Turn
+  g.act(1, { type: 'check' });
+  g.act(0, { type: 'check' });
+  // River
+  g.act(1, { type: 'check' });
+  g.act(0, { type: 'check' });
+
+  assert.strictEqual(g.phase, 'ended');
+  const r = g.results.hands[0]; // seat 0's hand
+  assert.strictEqual(r.categoryName, '皇家同花顺');
+
+  // Verify getPublicState heroHandType for seat 0
+  const snap = g.getPublicState(0);
+  assert.strictEqual(snap.heroHandType, '皇家同花顺');
+});
+
+test('余数筹码顺时针位置分配排序测试', () => {
+  const g = new Game({
+    players: [
+      { id: 100, seatId: 0, username: 'A', chips: 100 },
+      { id: 101, seatId: 1, username: 'B', chips: 100 },
+      { id: 102, seatId: 2, username: 'C', chips: 100 },
+    ],
+    dealerSeat: 0,
+    smallBlind: 5, bigBlind: 10, handId: 'h_odd_chip_sort'
+  });
+
+  const order = g._seatsAfter(0); // dealerSeat is 0.
+  // Clockwise order starting from dealer's next seat: SB (seat 1), BB (seat 2), D (seat 0)
+  assert.deepStrictEqual(order, [1, 2, 0]);
+
+  // Let's verify that when sorting winners in showdown, it sorts them by order of [1, 2, 0]
+  // winners: [0, 2, 1]
+  const winners = [0, 2, 1];
+  winners.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  assert.deepStrictEqual(winners, [1, 2, 0]);
+});

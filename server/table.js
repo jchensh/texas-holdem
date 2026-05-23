@@ -274,6 +274,12 @@ class Table {
     this.broadcast('new_hand', { state: baseState });
     this.broadcastGameState();
 
+    // 检查游戏是否已在初始化时结束（例如因为全押盲注直接进入摊牌）
+    if (this.game.phase === 'ended') {
+      this.saveAndSettleHand();
+      return;
+    }
+
     // 6. 激活首个玩家行动倒计时
     this.startActionTimer(this.game.currentSeat);
   }

@@ -29,7 +29,13 @@ function computePots(contributors) {
     const level = Math.min(...remaining.map(c => c.remaining));
     // 每个剩余玩家在这一层贡献 level，pot 总额 = level * 人数
     const amount = level * remaining.length;
-    const eligibleIds = remaining.filter(c => !c.folded).map(c => c.id);
+    let eligibleIds;
+    if (remaining.length === 1) {
+      // 唯一出资者，作为 uncalled bet 退回给该玩家本身，即便他已 folded
+      eligibleIds = [remaining[0].id];
+    } else {
+      eligibleIds = remaining.filter(c => !c.folded).map(c => c.id);
+    }
 
     if (eligibleIds.length > 0) {
       pots.push({ amount, eligibleIds });

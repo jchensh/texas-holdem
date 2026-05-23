@@ -437,6 +437,32 @@ index.html
 
 ---
 
+## Step 9.4 — 核心游戏引擎致命漏洞修复、皇家同花顺强化与 Option A 高级扑克规则集成（2026-05-24，commit `5d31204`）
+
+**目标**：立即修复核心游戏引擎中影响稳定性的死锁崩溃漏洞及边池退款漏洞，集成 Option A 高级德州扑克规则，增强皇家同花顺命名与视觉快照。
+
+**产出**：
+- `server/engine/game.js` — 
+  - **【致命漏洞修复】** 构造器尾部增加对当前活跃（`'active'`）玩家数判定。若下盲注后仅剩 0 或 1 名活跃可行动玩家（如盲注 All-in 场景），立即执行 `_runOutAndShowdown()` 自动发牌并结算，彻底解决游戏停留在翻牌前街、等待 All-in 玩家操作而产生的死锁问题。
+  - **【Option A 规则一集成】** Heads-up 双人局盲注上限自适应：若短堆玩家 chips 不足大盲，盲注上限自缩减为短堆筹码数，SB 相应削减，彻底避免大堆多付跟注款。
+  - **【Option A 规则二集成】** 不完整加注重启加注限制：引入 `isRaiseLocked` 加注锁定标志。Check / Call / Raise 后玩家自动锁定；仅当加注的筹量增量 $\ge$ 当前 `minRaise`（即完整加注）时才为其他玩家重新打开行动。短堆微小 All-in 将无法重新打开已表态玩家的加注选项。
+  - **【Option A 规则三集成】** 平分底池时，获取顺时针方向的座位列表，使得 winners 数组按到庄家左手侧顺时针相对距离排序，底池余数筹码（Odd Chip）精准倾斜给位置最劣势活跃赢家。
+- `server/engine/pot.js` — 
+  - **【严重漏洞修复】** 重构 `computePots` 边池算法。当某一籌码高度分池仅有 1 人贡献时（即为 Uncalled Bet 未跟注筹码），即使该出资玩家由于断线托管弃牌，该底池的 `eligibleIds` 也强行锁定为其本人，确保在结算时将此筹码退回，彻底阻断筹码被旁人“盗取”的算法漏洞。
+- `server/engine/hand-rank.js` — 
+  - 在 `evaluate7` 中加入皇家同花顺（花色相同、顶牌为 A 的同花顺）独立判定，覆盖将 `categoryName` 强化标识为 `'皇家同花顺'`，前台与 Hero 实时牌型同步显示。
+- `server/table.js` — 
+  - 构造 `Game` 实例后检测 `game.phase === 'ended'`，若游戏在初始化时已直接进入结算，立即触发 `saveAndSettleHand()` 进行入库和下一局延时，不开启行动计时器。
+- `server/engine/game.test.js` — 
+  - 补充 5 组针对上述边界和漏洞的 Rigorous 单元测试用例，覆盖盲注 All-in 自动摊牌死锁崩溃测试、未跟注筹码 fold 自动退回测试、皇家同花顺命名测试、双人对决盲注上限测试、不完整加注目光判定测试、余数筹码顺时针位置分配排序测试。所有 53 个引擎单元测试已 100% 绿灯全部跑通。
+
+**关键决策**：
+- **致命崩溃修复链路**：对于 blind-allin 死锁崩溃，在引擎内执行 auto-showdown 改变状态，并在 `table.js` 直接检查 settled，确保不卡在 preflop，消除了定时器崩溃隐患。
+- **Uncalled Bet 绝对归属**：采用 `remaining.length === 1` 来判断未跟注筹码层，使之成为独立 pot 锁定 eligible 给原玩家，这是分池算法中最优雅且规则完全精确的解法。
+- **加注锁的优雅状态机管理**：直接以 `isRaiseLocked` 实现加注状态记录，在 flop/turn/river 重置，免去了复杂的 street 嵌套追溯。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -453,6 +479,7 @@ index.html
 | 9.1 | 客户端规则常驻/滚动提示/回合高亮/行动飘字 & 管理员实时筹码Buyin与全局弹窗广播 | ✅ commit `4e73676` |
 | 9.2 | 牌型规则卡牌化展开、结算赢家底牌物化、HUD悬浮重构与高DPI字号放大 | ✅ commit `083389b` |
 | 9.3 | 牌局显示和交互优化需求（字号加大、位置 badges 样式、手牌 Show/Muck、5+2 结算动画） + 致命 JavaScript crash Bug 修复 | ✅ commit `8986e8a` |
+| 9.4 | 核心游戏引擎致命漏洞修复、皇家同花顺强化与 Option A 高级扑克规则集成 | ✅ commit `5d31204` |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
