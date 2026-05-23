@@ -340,6 +340,40 @@ index.html
 
 ---
 
+## Step 9.1 — 客户端牌局视觉优化与管理员极速充值系统开发（2026-05-23，commit `4e73676`）
+
+**目标**：全面提升客户端牌局可读性、参与感与视觉质感；并支持管理员在线中途极速为玩家充值（Buyin）以及全桌强弹窗模态宣告。
+
+**产出**：
+- `public/index.html` —
+  - 引入了底部毛玻璃 `.game-footer` 容器（含常驻 Rank 规则与滚动走马灯跑马灯系统提示）。
+  - 在牌桌奖池下方加入了 `#turn-indicator` 行动回合状态指示器。
+  - 引入了 `#global-alert-overlay` 全局霸气磨砂霓虹大弹窗。
+- `public/style.css` —
+  - 编写底栏、牌型排行与走马灯左右跑马灯滚动样式。
+  - 编写牌桌中央回合指示器（支持 `.my-turn` 金黄呼吸脉冲与 `.opponent-turn` 的暗淡色效对齐）。
+  - 编写了 `.action-float-text` 头像动作 3D 上浮、位移并淡出销毁的高对比度发光样式。
+  - 编写了全服大模态弹窗的高保真发光与缩放跳弹浮现效果。
+- `public/js/socket.js` — 绑定了 `global_notification` 服务端全局推送事件。
+- `public/js/app.js` —
+  - 实现 `updateGameState(state)` 对中央回合指示器的即时文字与状态更新。
+  - 实现了 `onPlayerAction(data)` 中动态创建飘字气泡、动画挂载与超时 `1.1s` DOM 销毁内存防泄漏机制。
+  - 增加了全局通知大弹窗 `showGlobalNotification` 的渲染、本地玩家筹码秒级自同步与 `5s` 自动隐藏。
+- `server/table.js` —
+  - 开发了核心充值 `adjustPlayerChips(username, amount)` 方法，实现 safe SQL 写盘持久化。
+  - 完美同步了大厅、旁观与席位筹码；若该玩家当前正在手牌内打牌，**智能实时挂载加码到德州引擎的活跃筹码上**，实现中途Buyin立即在下一秒 of 随后决策中起效。
+  - 执行 `this.broadcast('global_notification', ...)` 进行全局弹窗广播通知。
+- `server/admin-socket.js` — 挂载管理员 `/admin` 命名空间下的 `admin_adjust_chips` 接收网关，校验合法后调 table 层方法。
+- `public/admin.html` —
+  - 席位下方悬浮渲染了包含输入框、确定与 `+500` 金色发光按钮的极速充值条，设计紧凑且不阻挡手牌。
+  - 绑定充值指令发送与 `admin_action_result` 回执后的 showToast 实时正向声讯反馈。
+
+**关键决策**：
+- **实时德州引擎芯片挂载**：改变了原本“充值只在下局起效”的弊端。我们在修改物理座位筹码的同时直接对 `this.game.players` 内当前局的 `chips` 做出累加，使其瞬间参与到当前的 Call / Raise 行动的边界验证中。
+- **本地滑动内存缓存**：前端走马灯使用纯 CSS animation 实现，而全局充值弹窗设置 5 秒自动消退和行内手动关闭，体验极为饱满。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -353,6 +387,7 @@ index.html
 | 7 | `GET /api/history` + 前端 `_loadHistory` 接真实数据 | ✅ commit `3a39b86` |
 | 8 | 客户端视觉美化、高保真音效、粒子弹力反馈与离线自动托管机制优化 | ✅ commit `60c3fe8` |
 | 9 | 独立实时明牌管理后台与控制台实时日志终端 | ✅ commit `75ceac8` |
+| 9.1 | 客户端规则常驻/滚动提示/回合高亮/行动飘字 & 管理员实时筹码Buyin与全局弹窗广播 | ✅ commit `4e73676` |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ⏳ |
 
 ---
