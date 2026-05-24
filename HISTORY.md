@@ -633,6 +633,19 @@ index.html
 
 ---
 
+## Step 12 — GitHub README 展示页补全（2026-05-25，commit 本次提交）
+
+**目标**：补齐 GitHub 仓库首页下方的 README 展示区域，让公开仓库在生产服务器直接拉取部署的同时，也能对外清楚说明项目定位、技术栈、启动方式、部署入口和后续路线。
+
+**产出**：
+- `README.md` — 新增项目首页文档，包含 V1 核心能力、技术栈、本地启动、生产部署入口、未来路线与敏感信息边界。
+
+**关键决策**：
+- README 使用相对链接指向 `DEPLOY.md` 和 `FutureRoadmap.md`，确保 GitHub 页面可正常跳转。
+- 仓库继续保持 public，方便服务器直接从 GitHub 拉取部署；README 明确提醒不要提交 `.env`、真实 `SESSION_SECRET`、线上 SQLite 数据库和云端实际配置。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
