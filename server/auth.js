@@ -20,6 +20,60 @@ const BCRYPT_ROUNDS = 10;
 const USERNAME_RE = /^[a-zA-Z0-9_一-龥]{3,16}$/;
 const PASSWORD_MIN = 6;
 
+/**
+ * 简化 User-Agent 字符串，提取操作系统和浏览器主版本，便于后台直观审计
+ * @param {string} uaRaw
+ * @returns {string}
+ */
+function simplifyUserAgent(uaRaw) {
+  if (!uaRaw) return 'Unknown Device';
+
+  let os = 'Unknown OS';
+  let browser = 'Unknown Browser';
+
+  // 1. 识别操作系统
+  if (uaRaw.includes('Windows NT 10.0')) os = 'Windows 10/11';
+  else if (uaRaw.includes('Windows NT 6.1')) os = 'Windows 7';
+  else if (uaRaw.includes('Windows NT 6.2') || uaRaw.includes('Windows NT 6.3')) os = 'Windows 8';
+  else if (uaRaw.includes('iPhone') || uaRaw.includes('iPad')) {
+    const match = uaRaw.match(/OS (\d+(_\d+)*)/);
+    os = `iOS ${match ? match[1].replace(/_/g, '.') : ''}`;
+  }
+  else if (uaRaw.includes('Android')) {
+    const match = uaRaw.match(/Android (\d+(\.\d+)*)/);
+    os = `Android ${match ? match[1] : ''}`;
+  }
+  else if (uaRaw.includes('Macintosh')) {
+    const match = uaRaw.match(/Mac OS X (\d+(_\d+)*)/);
+    os = `macOS ${match ? match[1].replace(/_/g, '.') : ''}`;
+  }
+  else if (uaRaw.includes('Linux')) os = 'Linux';
+
+  // 2. 识别主流浏览器
+  if (uaRaw.includes('MicroMessenger')) {
+    const match = uaRaw.match(/MicroMessenger\/(\d+(\.\d+)*)/);
+    browser = `WeChat ${match ? match[1] : ''}`;
+  }
+  else if (uaRaw.includes('Edg/')) {
+    const match = uaRaw.match(/Edg\/(\d+)/);
+    browser = `Edge ${match ? match[1] : ''}`;
+  }
+  else if (uaRaw.includes('Chrome/')) {
+    const match = uaRaw.match(/Chrome\/(\d+)/);
+    browser = `Chrome ${match ? match[1] : ''}`;
+  }
+  else if (uaRaw.includes('Safari/') && !uaRaw.includes('Chrome')) {
+    const match = uaRaw.match(/Version\/(\d+)/);
+    browser = `Safari ${match ? match[1] : ''}`;
+  }
+  else if (uaRaw.includes('Firefox/')) {
+    const match = uaRaw.match(/Firefox\/(\d+)/);
+    browser = `Firefox ${match ? match[1] : ''}`;
+  }
+
+  return `${os} / ${browser}`.trim();
+}
+
 const queries = {
   findByUsername: db.prepare(
     'SELECT id, username, password_hash, chips FROM users WHERE username = ?'
@@ -31,6 +85,9 @@ const queries = {
     INSERT INTO users (username, password_hash, chips, created_at)
     VALUES (?, ?, ?, ?)
   `),
+  updateLoginInfo: db.prepare(
+    'UPDATE users SET last_login_ip = ?, last_login_ua = ? WHERE id = ?'
+  ),
   getHistory: db.prepare(`
     SELECT hand_id, ended_at, result, profit, chips_after, hole_cards, community_cards, action_summary, seat_id
     FROM hand_history
@@ -65,6 +122,15 @@ router.post('/register', async (req, res) => {
       username, hash, config.STARTING_CHIPS, Date.now()
     );
 
+    // 记录审计信息
+    try {
+      const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const ua = simplifyUserAgent(req.headers['user-agent']);
+      queries.updateLoginInfo.run(ip, ua, id);
+    } catch (e) {
+      console.error('[auth] 记录注册 IP 和 UA 失败:', e);
+    }
+
     req.session.userId = id;
     res.json({ user: { id, username, chips: config.STARTING_CHIPS } });
   } catch (err) {
@@ -90,6 +156,16 @@ router.post('/login', async (req, res) => {
     if (!user || !ok) {
       return res.status(401).json({ message: '用户名或密码错误' });
     }
+
+    // 记录审计信息
+    try {
+      const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const ua = simplifyUserAgent(req.headers['user-agent']);
+      queries.updateLoginInfo.run(ip, ua, user.id);
+    } catch (e) {
+      console.error('[auth] 记录登录 IP 和 UA 失败:', e);
+    }
+
     req.session.userId = user.id;
     res.json({ user: { id: user.id, username: user.username, chips: user.chips } });
   } catch (err) {
@@ -192,4 +268,4 @@ router.get('/history', requireAuth, (req, res) => {
   }
 });
 
-module.exports = { router, requireAuth };
+module.exports = { router, requireAuth, simplifyUserAgent };

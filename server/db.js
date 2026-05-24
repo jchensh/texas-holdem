@@ -27,7 +27,9 @@ db.exec(`
     password_hash   TEXT    NOT NULL,
     chips           INTEGER NOT NULL DEFAULT 1000,
     lifetime_profit INTEGER NOT NULL DEFAULT 0,
-    created_at      INTEGER NOT NULL
+    created_at      INTEGER NOT NULL,
+    last_login_ip   TEXT,
+    last_login_ua   TEXT
   );
 
   CREATE TABLE IF NOT EXISTS hand_history (
@@ -53,6 +55,22 @@ db.exec(`
 try {
   db.exec('ALTER TABLE hand_history ADD COLUMN seat_id INTEGER DEFAULT 0');
   console.log('[db] 成功升级 hand_history 表，添加 seat_id 字段');
+} catch (err) {
+  // 忽略列已存在的错误
+}
+
+// 热升级：为存量数据库升级用户表，添加 last_login_ip 字段
+try {
+  db.exec('ALTER TABLE users ADD COLUMN last_login_ip TEXT');
+  console.log('[db] 成功升级 users 表，添加 last_login_ip 字段');
+} catch (err) {
+  // 忽略列已存在的错误
+}
+
+// 热升级：为存量数据库升级用户表，添加 last_login_ua 字段
+try {
+  db.exec('ALTER TABLE users ADD COLUMN last_login_ua TEXT');
+  console.log('[db] 成功升级 users 表，添加 last_login_ua 字段');
 } catch (err) {
   // 忽略列已存在的错误
 }
