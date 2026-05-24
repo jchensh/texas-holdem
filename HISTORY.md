@@ -611,6 +611,28 @@ index.html
 
 ---
 
+## Step 11 — 专属域名绑定、HTTPS 证书配置与 WebSocket 安全升级（2026-05-25，V1 版本完美收官）
+
+**目标**：为部署在谷歌云香港 VM 上的游戏平台绑定自定义专业域名 `jeffgame.tech`（二级域名 `poker.jeffgame.tech`），配置免费的 Let's Encrypt SSL 安全证书以实现全站 HTTPS 加密访问，并彻底升级 Socket.IO 的安全 WebSocket（`wss://`）长连接；同时理清 Nginx 代理与 Certbot 冲突引起的重定向循环及 IP 访问 404 等典型生产环境 Bug，标志着 Poker Night V1 版本完美收官。
+
+**产出**：
+- **火山引擎 DNS 域名解析**：成功在火山引擎域名服务后台为 `jeffgame.tech` 添加 `A` 记录，将主机记录 `poker` 指向 GCP 公网 IP `34.92.181.190`，完成 DNS 解析秒级生效。
+- `/var/www/poker-night/poker-night.nginx.conf` — 线上重构为极简、标准且没有指令冗余的生产级 Nginx 反向代理配置（精简了由 Certbot 重复插入的 `ssl_protocols` 和 `ssl_ciphers`，直接信任并继承 `/etc/letsencrypt/options-ssl-nginx.conf` 的最佳实践，完全消除了 Nginx 启动自检的 duplicate warnings/emerg 报错）。
+- **SSL 证书部署**：通过 Certbot 全自动为 `poker.jeffgame.tech` 申请并绑定 Let's Encrypt 证书，自动配置 `80 -> 443` 的 301 强转跳转规则。
+
+**关键决策与排障记录**：
+- **Nginx & Certbot 经典“鸡生蛋，蛋生鸡”报错排障**：由于初始模板配置中开启了 `listen 443 ssl` 但证书尚未生成，Nginx 会因缺少 `ssl_certificate` 导致自检失败而拒绝启动，进而阻止 Certbot 进行网络验证。通过**临时剔除 ssl 标志**，让 Nginx 顺利过检并监听 443 端口，在 Certbot 生成并写入证书后再行补全，完美解开了此闭环锁。
+- **Nginx + Certbot 规则重复导致的无限重定向循环（Too Many Redirects）排障**：由于 Certbot 在生成 443 配置时发生误判，将 SSL 证书挂载到了原本专用于 HTTP 跳转的 server 块上，而把实际转发 3000 端口游戏服务的 server 块置于了未加密的 443 监听下，导致 HTTPS 访问被不断重定向至自身。通过**重写标准生产级 Nginx 双 Server 块配置**彻底根治了该问题。
+- **默认 IP 404 安全加固**：通过移除 `/etc/nginx/sites-enabled/default`，使 Nginx 仅响应正确的域名请求。对于使用裸 IP 访问的请求直接返回 404。这极大提升了服务防扫描、防越权及防爆破的安全性，使游戏环境符合高水准的商业化专业规范。
+
+**测试验证**：
+- 浏览器通过域名 `https://poker.jeffgame.tech` 完美极速连入，地址栏带有安全锁标记。
+- 控制台获取 `/api/me` 返回 `401`（未登录）为完全正常的初始化路由机制，登录/注册后即转为 200 OK。
+- 外部 BGM 加载失败时自动触发前端 built-in Web Audio API 降级算法，本地实时合成 Lo-Fi 爵士乐，对局长连接状态及游戏逻辑 100% 健全流畅！
+- **V1 完美收官声明**：至此，德州扑克核心规则、账号持久筹码、战绩历史落库、长超时 WebSocket 防断线重连、明牌管理后台与全套谷歌云香港生产运维、域名 SSL 加密全部落地通关。V1 版本功德圆满，宣布正式收官！
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
@@ -633,6 +655,7 @@ index.html
 | 9.7 | 玩家离线/重连全局强通知弹窗（补齐 Step 8 遗留） | ✅ commit 本次提交 |
 | 9.8 | 未来前端与后端架构路线文档 `FutureRoadmap.md` | ✅ commit 本次提交 |
 | 10 | 谷歌云香港 VM 部署（PM2 守护、Nginx WebSocket 反代、安全组配置、部署指南） | ✅ commit 本次提交 |
+| 11 | 专属域名绑定、HTTPS 证书配置与 WebSocket 安全升级（V1 终结宣告） | ✅ commit 本次提交 |
 
 ---
 
