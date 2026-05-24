@@ -2062,77 +2062,123 @@ body.portrait .game-main {
   overflow: hidden;
 }
 
-/* 牌桌场景：改用相对尺寸填满竖屏宽度 */
+/* 牌桌场景：占据「头部 → 底部英雄坞」之间的上半区，英雄坞另行固定到底部 */
 body.portrait .table-scene {
   width: 100vw;
-  height: 72vh;
+  height: 54vh;
 }
 
 /* 椭圆牌桌：覆盖固定 px 尺寸 */
 body.portrait .poker-table {
-  width: 76vw;
-  height: 26vh;
-  top: 36%;
-  border-width: 9px;
+  width: 72vw;
+  height: 30vh;
+  top: 44%;
+  border-width: 8px;
+  gap: 6px;
 }
-body.portrait .community-cards { gap: 5px; }
-body.portrait .pot-amount { font-size: 16px; }
 
-/* 9 个对手座位：窄屏椭圆环绕坐标（英雄仍固定底部中央，坐标内收避免出血到屏外） */
-body.portrait #seat-5 { left: 39%; top:  1%; }
-body.portrait #seat-4 { left: 19%; top:  5%; }
-body.portrait #seat-6 { left: 60%; top:  5%; }
-body.portrait #seat-3 { left:  4%; top: 18%; }
-body.portrait #seat-7 { left: 72%; top: 18%; }
-body.portrait #seat-2 { left:  2%; top: 33%; }
-body.portrait #seat-8 { left: 74%; top: 33%; }
-body.portrait #seat-1 { left:  6%; top: 47%; }
-body.portrait #seat-9 { left: 70%; top: 47%; }
+/* 公共牌 / 底池在竖屏缩小，避免溢出椭圆、压住对手座位 */
+body.portrait .community-cards { gap: 4px; }
+body.portrait .community-cards .card { width: 40px; height: 56px; border-radius: 5px; }
+body.portrait .community-cards .card .card-rank-tl,
+body.portrait .community-cards .card .card-rank-br { font-size: 11px; }
+body.portrait .community-cards .card .card-suit-center { font-size: 18px; }
+body.portrait .pot-amount { font-size: 16px; }
+body.portrait .pot-row { padding: 2px 10px; }
+body.portrait .pot-label { font-size: 11px; }
+body.portrait .game-status-text { font-size: 11px; }
+
+/* 9 个对手座位：贴椭圆外围环绕，底侧两座位上移避免与底部英雄坞冲突 */
+body.portrait #seat-5 { left: 39%; top:  1%;  bottom: auto; }
+body.portrait #seat-4 { left: 17%; top:  5%;  bottom: auto; }
+body.portrait #seat-6 { left: 61%; top:  5%;  bottom: auto; }
+body.portrait #seat-3 { left:  1%; top: 22%;  bottom: auto; }
+body.portrait #seat-7 { left: 74%; top: 22%;  bottom: auto; }
+body.portrait #seat-2 { left:  0%; top: 44%;  bottom: auto; }
+body.portrait #seat-8 { left: 76%; top: 44%;  bottom: auto; }
+body.portrait #seat-1 { left:  5%; top: 66%;  bottom: auto; }
+body.portrait #seat-9 { left: 73%; top: 66%;  bottom: auto; }
 
 /* 对手座位整体压缩，避免窄屏挤爆 */
 body.portrait .seat-body { min-width: 0; padding: 3px 6px; gap: 5px; }
-body.portrait .seat-avatar { width: 26px; height: 26px; }
-body.portrait .seat-avatar.lg { width: 32px; height: 32px; }
-body.portrait .seat-name { font-size: 11px; }
-body.portrait .seat-chips-val { font-size: 10px; }
-body.portrait .seat-cards .card.sm { width: 20px; height: 28px; }
+body.portrait .seat-avatar { width: 24px; height: 24px; }
+body.portrait .seat-avatar.lg { width: 30px; height: 30px; }
+body.portrait .seat-name { font-size: 10px; }
+body.portrait .seat-chips-val { font-size: 9px; }
+body.portrait .seat-cards .card.sm { width: 18px; height: 26px; }
 
-/* 操作区：吸附到视口底部的全宽工具条 + 加大点按热区 */
-body.portrait .action-panel {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  min-width: 0;
-  border-radius: 16px 16px 0 0;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  z-index: 100;
-  box-shadow: 0 -6px 20px rgba(0,0,0,.5);
-}
-body.portrait .action-buttons { gap: 10px; }
-body.portrait .btn-action {
-  flex: 1 1 auto;
-  padding: 14px 12px;
-  font-size: 16px;
-  min-height: 48px;          /* 触控友好热区 */
-}
-body.portrait .raise-wrap { flex: 1 1 100%; }
-body.portrait .raise-slider-row input[type=range] { height: 10px; }
+/* 回合横幅：缩小，避免压住底池/公共牌 */
+body.portrait .turn-indicator { font-size: 11px; padding: 4px 10px; }
+body.portrait .turn-indicator .turn-text { font-size: 11px; }
 
-/* 英雄区：去掉 translateX 变换（否则它会成为 position:fixed 操作条的包含块，导致操作条无法吸附到视口底部），改为整行居中 */
+/* ══ 英雄坞：底牌 + 信息 + 操作区作为一个整体固定到视口底部 ══
+   （Phase 1 旧方案把操作条单独 fixed，导致它盖住英雄底牌/信息；现在整组下沉，杜绝遮挡） */
 body.portrait .hero-zone {
-  left: 0;
-  right: 0;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
   width: 100%;
   transform: none;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  bottom: 6px;
-  gap: 10px;
+  gap: 6px 8px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(8,12,18,0.985), rgba(8,12,18,0.92));
+  box-shadow: 0 -8px 22px rgba(0,0,0,.6);
+  z-index: 90;
 }
+/* 第一行：当前牌型徽标 + 英雄底牌 + 英雄信息；操作区换行成独立整行 */
+body.portrait .hand-type-badge {
+  order: 1;
+  position: static;
+  left: auto; bottom: auto;
+  transform: none;
+  animation: none;          /* 关掉 badgeFadeIn(forwards) 残留的 translate(-50%)，否则徽标会被推到屏外左侧 */
+  margin: 0;
+  flex: 1 1 100%;
+  justify-content: center;
+}
+body.portrait .hero-hole-cards { order: 2; gap: 8px; }
+body.portrait .hero-hole-cards .card { width: 48px; height: 68px; }
+body.portrait .hero-info { order: 3; padding: 6px 10px; }
+body.portrait .action-panel {
+  order: 10;
+  position: static;
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+body.portrait .action-buttons { gap: 8px; }
+body.portrait .btn-action {
+  flex: 1 1 auto;
+  padding: 13px 10px;
+  font-size: 15px;
+  min-height: 46px;          /* 触控友好热区 */
+}
+body.portrait .raise-wrap { flex: 1 1 100%; }
+body.portrait .raise-slider-row input[type=range] { height: 12px; }
 
-/* 结算/大厅蒙层升级为全视口固定，避免被场景相对尺寸裁切 */
-body.portrait .settlement-overlay { position: fixed; inset: 0; }
+/* 结算弹窗：竖屏改为全视口 flex 居中（必须清掉基础的 translate 偏移，否则被推出屏幕外） */
+body.portrait .settlement-overlay {
+  position: fixed;
+  inset: 0;
+  top: 0; left: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.portrait .settlement-overlay.active { transform: none; }
+body.portrait .settlement-box { width: 90%; max-width: 400px; }
 
 
 
