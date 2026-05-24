@@ -13,6 +13,9 @@ module.exports = {
   SESSION_SECRET:     process.env.SESSION_SECRET || 'dev-only-change-me-in-prod',
   SESSION_MAX_AGE_MS: 30 * 24 * 60 * 60 * 1000,  // 30 天
 
+  // 管理后台密码（登录一次即在 session 内置 isAdmin，后续操作免密）。生产务必用环境变量覆盖默认值。
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin888',
+
   // SQLite 数据库
   DB_PATH: process.env.DB_PATH || path.join(__dirname, '..', 'data', 'poker.db'),
 

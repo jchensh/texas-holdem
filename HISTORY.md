@@ -656,6 +656,34 @@ index.html
 
 ---
 
+## Step 13 — V2 Phase 2：后台密码登录 + 注册玩家查阅 + 实时游戏中玩家列表（2026-05-25，待提交）
+
+**目标**：补齐管理后台运营能力（中优先级需求 4/5 + 需求 8 的鉴权前置）。给零鉴权的 `/admin` 加密码登录门，新增全服注册玩家查阅与详情，并在后台旁观列表上方新增「实时游戏中玩家」面板。
+
+**产出**：
+- `server/config.js` + `.env.example` — 新增 `ADMIN_PASSWORD`（默认 `admin888`，生产用环境变量覆盖）。
+- `server/admin-routes.js`（新增）— 管理后台 HTTP 路由 + `requireAdmin` 中间件：`POST /login`（校验密码后置 `session.isAdmin`）、`POST /logout`、`GET /me`、`GET /players`（全服玩家）、`GET /player/:id`（玩家详情+最近 50 手历史）、`POST /kick`（从 index.js 迁入并加鉴权）。登录一次后操作免密。
+- `server/index.js` — 挂载 `/api/admin` 路由（先于通用 `/api`），移除原零鉴权的内联 kick 路由。
+- `server/admin-socket.js` — `/admin` 命名空间新增鉴权中间件，仅 `session.isAdmin` 的连接可接入实时通道。
+- `server/table.js` — 入座/旁观/补位时记录 `connectedAt`；`getAdminState` 的 onlinePlayers 增加 `userId`/`connectedAt`，spectators 增加 `userId`/`connectedAt`，供后台统计在线时长。
+- `public/admin.html` —
+  - 登录蒙层（默认显示，`/api/admin/me` 鉴权通过才连 socket + 拉玩家列表）、头部「退出登录」按钮、socket `connect_error` 回退登录。
+  - 「全服注册玩家」面板（表格：ID/用户名/筹码/终生净收益/注册时间，点击行弹详情 modal，含统计与近期对局）。
+  - 「实时游戏中玩家」面板置于旁观列表上方（在线状态点/ID/座位/在线时长秒级刷新/筹码）。
+  - 迷你明牌监控板由 6 座扩为 10 座（新增 `seat-abs-6~9` DOM + 坐标，渲染循环与「席位入座 X/10」同步）。
+
+**关键决策**：
+- 鉴权模型：单一管理员密码，登录一次在 cookie-session 置 `isAdmin`，后续 HTTP 路由与 socket 命名空间共用 `requireAdmin` 口径，操作免密（按用户要求）。
+- 「在线时长」= 取座/入列时的 `connectedAt` 到当前；前端 1 秒定时器本地推算并刷新，离线托管期间仍计时、状态另以圆点标识。
+
+**测试验证**：
+- 后台登录：错误密码被拒并提示；正确密码进入、socket 连上、注册玩家表加载（开发库 22 条）。未登录时不建立 socket（鉴权门生效）。
+- 注册玩家详情：点开玩家弹窗正确显示筹码/终生收益/近期手牌（后端 `/api/admin/player/:id` 正常）。
+- 实时游戏中玩家：样本数据校验在线/离线、ID、座位、时长（3分5秒 / 1时2分）、筹码均正确渲染；迷你监控板 10 座全部落在场景内。
+- 回归：三个 E2E（step6 对局流 / step7 历史 / offline 通知）对运行中的服务 `PORT=3000` 独立运行**全部通过**（exit 0），管理后台路由重构与 `getAdminState` 改动无回归。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |

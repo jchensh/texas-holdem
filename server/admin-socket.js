@@ -66,7 +66,18 @@ console.error = function(...args) {
 module.exports = {
   init(io) {
     adminNamespaceInstance = io.of('/admin');
-    
+
+    // 鉴权中间件：只有带管理员登录态的 session 才能连入该命名空间
+    adminNamespaceInstance.use((socket, next) => {
+      const session = socket.request.session;
+      if (session && session.isAdmin) {
+        return next();
+      }
+      const err = new Error('未授权：需要管理员登录');
+      err.data = { code: 'UNAUTHORIZED' };
+      next(err);
+    });
+
     adminNamespaceInstance.on('connection', (socket) => {
       // 使用原始 console.log 防止触发 Socket 内部日志再次广播
       originalLog.apply(console, [`[AdminSocket] 管理员已连接: ${socket.id}`]);

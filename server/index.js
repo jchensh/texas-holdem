@@ -11,9 +11,10 @@ const express       = require('express');
 const cookieSession = require('cookie-session');
 const { Server: SocketIOServer } = require('socket.io');
 
-const config = require('./config');
-const auth   = require('./auth');
-const lobby  = require('./lobby');
+const config      = require('./config');
+const auth        = require('./auth');
+const lobby       = require('./lobby');
+const adminRoutes = require('./admin-routes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -36,23 +37,9 @@ const sessionMiddleware = cookieSession({
 app.use(express.json());
 app.use(sessionMiddleware);
 
-// 业务路由
+// 业务路由（管理后台先于通用 /api 挂载，确保 /api/admin/* 优先命中其专属鉴权路由）
+app.use('/api/admin', adminRoutes.router);
 app.use('/api', auth.router);
-
-// 管理员踢人临时 API
-app.post('/api/admin/kick', (req, res) => {
-  const { username } = req.body;
-  if (!username) {
-    return res.status(400).json({ message: '请输入要踢出的用户名' });
-  }
-  const table = require('./table');
-  const success = table.kickPlayer(username);
-  if (success) {
-    res.json({ ok: true, message: `已成功将玩家 ${username} 踢出` });
-  } else {
-    res.status(404).json({ message: `未找到玩家 ${username}` });
-  }
-});
 
 // 前端静态文件（最后挂，让 /api 路由优先匹配）
 const publicDir = path.join(__dirname, '..', 'public');

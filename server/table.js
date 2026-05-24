@@ -90,8 +90,8 @@ class Table {
     // 2. 检查该玩家是否已经在旁观列表中
     for (const spec of this.spectators.values()) {
       if (spec.userId === userId) {
-        // 多 Tab 旁观，直接记录
-        this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket });
+        // 多 Tab 旁观，直接记录（沿用该用户已有的旁观起始时间）
+        this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket, connectedAt: spec.connectedAt || Date.now() });
         socket.data.seatId = null;
         this.syncLobbyState();
         if (this.game) {
@@ -117,7 +117,8 @@ class Table {
         userId,
         username: user.username,
         chips: user.chips,
-        socketIds: new Set([socket.id])
+        socketIds: new Set([socket.id]),
+        connectedAt: Date.now()   // 入座时间，用于后台统计在线时长
       };
       socket.data.seatId = emptyIndex;
       console.log(`[Table] 玩家 ${user.username} 自动分配坐下座位 ${emptyIndex} (${socket.id})`);
@@ -129,7 +130,7 @@ class Table {
       });
     } else {
       // 满员或者游戏正在进行中，先作为观战者
-      this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket });
+      this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket, connectedAt: Date.now() });
       socket.data.seatId = null;
       console.log(`[Table] 玩家 ${user.username} 作为旁观者加入 (${socket.id})`);
     }
@@ -546,7 +547,8 @@ class Table {
           userId: spec.userId,
           username: spec.username,
           chips: spec.chips,
-          socketIds: new Set([socketId])
+          socketIds: new Set([socketId]),
+          connectedAt: spec.connectedAt || Date.now()   // 沿用其旁观期间的在线起始时间
         };
         const socket = this.io.sockets.sockets.get(socketId);
         if (socket) {
@@ -860,9 +862,11 @@ class Table {
       if (!seat) return null;
       return {
         seatId,
+        userId: seat.userId,
         username: seat.username,
         chips: seat.chips,
         isOffline: seat.socketIds.size === 0,
+        connectedAt: seat.connectedAt || null,   // 用于后台计算在线时长
       };
     }).filter(Boolean);
 
@@ -873,8 +877,10 @@ class Table {
       if (!seenSpecIds.has(spec.userId)) {
         seenSpecIds.add(spec.userId);
         spectatorsList.push({
+          userId: spec.userId,
           username: spec.username,
           chips: spec.chips,
+          connectedAt: spec.connectedAt || null,
         });
       }
     }
