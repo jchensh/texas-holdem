@@ -853,11 +853,24 @@ class Table {
     // 1. 获取物理座位状态（不进行相对转换，暴露绝对座位）
     const onlinePlayers = this.seats.map((seat, seatId) => {
       if (!seat) return null;
+      let ip = 'Unknown';
+      let ua = 'Unknown';
+      try {
+        const row = db.prepare('SELECT last_login_ip, last_login_ua FROM users WHERE id = ?').get(seat.userId);
+        if (row) {
+          ip = row.last_login_ip || 'Unknown';
+          ua = row.last_login_ua || 'Unknown';
+        }
+      } catch (e) {
+        // 忽略
+      }
       return {
         seatId,
         username: seat.username,
         chips: seat.chips,
         isOffline: seat.socketIds.size === 0,
+        ip,
+        ua
       };
     }).filter(Boolean);
 
@@ -867,9 +880,22 @@ class Table {
     for (const spec of this.spectators.values()) {
       if (!seenSpecIds.has(spec.userId)) {
         seenSpecIds.add(spec.userId);
+        let ip = 'Unknown';
+        let ua = 'Unknown';
+        try {
+          const row = db.prepare('SELECT last_login_ip, last_login_ua FROM users WHERE id = ?').get(spec.userId);
+          if (row) {
+            ip = row.last_login_ip || 'Unknown';
+            ua = row.last_login_ua || 'Unknown';
+          }
+        } catch (e) {
+          // 忽略
+        }
         spectatorsList.push({
           username: spec.username,
           chips: spec.chips,
+          ip,
+          ua
         });
       }
     }

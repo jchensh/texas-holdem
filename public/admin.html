@@ -1114,7 +1114,7 @@
       <div class="lobby-sidebar" style="display: flex; flex-direction: column; min-height: 0;">
         <div class="panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
           <div class="panel-header">
-            <h2>大厅旁观者列表</h2>
+            <h2>全员实时网络审计 (IP/设备)</h2>
           </div>
           <div class="spectator-list" id="spectator-list" style="flex: 1; max-height: none; overflow-y: auto;">
             <!-- 动态生成 -->
@@ -1394,24 +1394,68 @@
         renderSeat(i, data.gameState, data.onlinePlayers);
       }
 
-      // 4. 渲染旁观者列表
+      // 4. 渲染全员实时网络审计 (在座玩家 + 旁观者)
       const specContainer = document.getElementById('spectator-list');
       specContainer.innerHTML = '';
-      if (data.spectators.length === 0) {
-        specContainer.innerHTML = '<div class="spec-empty">当前大厅无旁观者</div>';
+
+      // 汇总在座玩家和旁观者
+      const allOnlineUsers = [];
+      data.onlinePlayers.forEach(p => {
+        allOnlineUsers.push({
+          username: p.username,
+          chips: p.chips,
+          isSeated: true,
+          seatId: p.seatId,
+          ip: p.ip,
+          ua: p.ua,
+          isOffline: p.isOffline
+        });
+      });
+      data.spectators.forEach(s => {
+        allOnlineUsers.push({
+          username: s.username,
+          chips: s.chips,
+          isSeated: false,
+          ip: s.ip,
+          ua: s.ua,
+          isOffline: false
+        });
+      });
+
+      if (allOnlineUsers.length === 0) {
+        specContainer.innerHTML = '<div class="spec-empty">当前大厅无在线玩家</div>';
       } else {
-        data.spectators.forEach(spec => {
+        allOnlineUsers.forEach(user => {
           const item = document.createElement('div');
           item.className = 'spec-item';
+          item.style.flexDirection = 'column';
+          item.style.alignItems = 'stretch';
+          item.style.gap = '4px';
           
+          const roleBadge = user.isSeated 
+            ? `<span style="background: rgba(63, 185, 80, 0.12); color: var(--green); font-size: 9px; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; border: 1px solid rgba(63, 185, 80, 0.25); text-shadow: 0 0 6px rgba(63,185,80,0.3); margin-left: 6px;">席位 ${user.seatId}</span>`
+            : `<span style="background: rgba(59, 130, 246, 0.12); color: var(--blue); font-size: 9px; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.25); text-shadow: 0 0 6px rgba(59,130,246,0.3); margin-left: 6px;">旁观</span>`;
+
+          const offlineBadge = user.isOffline
+            ? `<span style="background: rgba(244, 63, 94, 0.12); color: var(--red); font-size: 9px; font-weight: 800; padding: 1.5px 5px; border-radius: 4px; border: 1px solid rgba(244, 63, 94, 0.25); text-shadow: 0 0 6px rgba(244,63,94,0.3); margin-left: 6px;">离线</span>`
+            : '';
+
           item.innerHTML = `
-            <div class="spec-name-wrap">
-              <span class="spec-dot"></span>
-              <span>${escapeHTML(spec.username)}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div class="spec-name-wrap">
+                <span class="spec-dot" style="background: ${user.isSeated ? 'var(--green)' : 'var(--blue)'}; box-shadow: 0 0 6px ${user.isSeated ? 'var(--green)' : 'var(--blue)'};"></span>
+                <span>${escapeHTML(user.username)}</span>
+                ${roleBadge}
+                ${offlineBadge}
+              </div>
+              <div class="spec-item-right">
+                <span class="spec-chips">${user.chips} 筹码</span>
+                <button class="spec-kick-btn" onclick="triggerKick('${escapeHTML(user.username)}')" title="移出游戏" style="font-size: 14px;">×</button>
+              </div>
             </div>
-            <div class="spec-item-right">
-              <span class="spec-chips">${spec.chips} 筹码</span>
-              <button class="spec-kick-btn" onclick="triggerKick('${escapeHTML(spec.username)}')" title="踢出大厅">×</button>
+            <div class="spec-audit-info" style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 6px; align-items: center; opacity: 0.85; flex-wrap: wrap;">
+              <span style="background: rgba(255,255,255,0.04); padding: 1.5px 5px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06); font-family: monospace; line-height: 1;">IP: ${escapeHTML(user.ip || 'Unknown')}</span>
+              <span style="background: rgba(201, 168, 76, 0.06); color: var(--gold); padding: 1.5px 5px; border-radius: 4px; border: 1px solid rgba(201, 168, 76, 0.1); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;" title="${escapeHTML(user.ua || 'Unknown')}">${escapeHTML(user.ua || 'Unknown')}</span>
             </div>
           `;
           specContainer.appendChild(item);
