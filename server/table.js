@@ -15,9 +15,9 @@ const { Game } = require('./engine/game');
 class Table {
   constructor() {
     this.io = null;
-    // 6 个物理绝对座位 (0..5)
+    // MAX_SEATS 个物理绝对座位 (0..MAX_SEATS-1，V2 为 10 座)
     // 存放: null 或 { userId, username, chips, socketIds: Set<string> }
-    this.seats = Array(6).fill(null);
+    this.seats = Array(config.MAX_SEATS).fill(null);
     // 旁观者 socket.id -> { userId, username, chips, socket }
     this.spectators = new Map();
     // 当前德扑引擎 Game 实例
@@ -101,10 +101,10 @@ class Table {
       }
     }
 
-    // 3. 全新连接：校验房间最大人数限制（最多 10 人在线）
+    // 3. 全新连接：校验房间最大人数限制
     const onlineIds = this.getUniqueOnlineUsers();
-    if (onlineIds.size >= 10 && !onlineIds.has(userId)) {
-      socket.emit('error', { message: '房间人数已满（最多 10 人在线）' });
+    if (onlineIds.size >= config.MAX_ONLINE && !onlineIds.has(userId)) {
+      socket.emit('error', { message: `房间人数已满（最多 ${config.MAX_ONLINE} 人在线）` });
       socket.disconnect(true);
       return;
     }
@@ -254,9 +254,10 @@ class Table {
       this.dealerSeat = this.seats.findIndex(Boolean);
     } else {
       // 顺时针寻找下一位有座的物理席位
+      const N = this.seats.length;
       let nextDealer = this.dealerSeat;
-      for (let i = 1; i <= 6; i++) {
-        const idx = (this.dealerSeat + i) % 6;
+      for (let i = 1; i <= N; i++) {
+        const idx = (this.dealerSeat + i) % N;
         if (this.seats[idx]) {
           nextDealer = idx;
           break;
@@ -609,20 +610,24 @@ class Table {
     if (!data || typeof data !== 'object') return data;
     
     const clone = JSON.parse(JSON.stringify(data));
+    // 座位数（V2 为 10），相对旋转的取模基数
+    const N = this.seats.length;
 
     const translateGameState = (state) => {
       if (!state) return;
+      // 先按绝对座位算出庄家相对位，再旋转 dealerSeat，避免后续比较时基准被覆盖
+      const absDealer = state.dealerSeat;
       if (state.currentSeat !== null && state.currentSeat !== undefined) {
-        state.currentSeat = (state.currentSeat - viewerSeatId + 6) % 6;
+        state.currentSeat = (state.currentSeat - viewerSeatId + N) % N;
       }
       if (state.dealerSeat !== null && state.dealerSeat !== undefined) {
-        state.dealerSeat = (state.dealerSeat - viewerSeatId + 6) % 6;
+        state.dealerSeat = (state.dealerSeat - viewerSeatId + N) % N;
       }
       if (Array.isArray(state.players)) {
         state.players.forEach(p => {
           const absSeat = p.seatId;
-          p.seatId = (absSeat - viewerSeatId + 6) % 6;
-          p.isDealer = absSeat === state.dealerSeat;
+          p.seatId = (absSeat - viewerSeatId + N) % N;
+          p.isDealer = absSeat === absDealer;
         });
         state.players.sort((a, b) => a.seatId - b.seatId);
       }
@@ -630,14 +635,14 @@ class Table {
         if (Array.isArray(state.results.summary)) {
           state.results.summary.forEach(s => {
             const absSeat = s.seatId;
-            s.seatId = (absSeat - viewerSeatId + 6) % 6;
+            s.seatId = (absSeat - viewerSeatId + N) % N;
           });
         }
         if (state.results.hands && typeof state.results.hands === 'object') {
           const relHands = {};
           for (const [absSeatStr, handData] of Object.entries(state.results.hands)) {
             const absSeat = parseInt(absSeatStr, 10);
-            const relSeat = (absSeat - viewerSeatId + 6) % 6;
+            const relSeat = (absSeat - viewerSeatId + N) % N;
             relHands[relSeat] = handData;
           }
           state.results.hands = relHands;
@@ -657,7 +662,7 @@ class Table {
     // 3. 处理根级 seatId (例如 player_action / player_joined / chips_update)
     if (clone.seatId !== undefined && clone.seatId !== null) {
       const originalSeatId = data.seatId;
-      clone.seatId = (originalSeatId - viewerSeatId + 6) % 6;
+      clone.seatId = (originalSeatId - viewerSeatId + N) % N;
       if (clone.isHero !== undefined) {
         clone.isHero = (originalSeatId === viewerSeatId);
       }

@@ -396,6 +396,9 @@ const AudioEngine = {
 
 const App = {
 
+  // 单桌最大座位数（须与后端 config.MAX_SEATS 一致）
+  MAX_SEATS: 10,
+
   state: {
     user: null,       // { username, chips }
     game: null,       // 最新 GameState
@@ -418,6 +421,7 @@ const App = {
     this._bindGameEvents();
     this._bindHistoryEvents();
     this._bindRaiseSlider();
+    this._setupOrientation();
 
     // 德州规则展开开关绑定
     const toggleBtn = document.getElementById('btn-toggle-rules');
@@ -444,6 +448,22 @@ const App = {
     } catch {
       this._showView('auth');
     }
+  },
+
+  /**
+   * 自动检测屏幕方向（需求 3）：竖屏给 <body> 加 .portrait，横屏/桌面加 .landscape。
+   * CSS 据此切换专用布局；方向变化（手机旋转）时实时更新。
+   */
+  _setupOrientation() {
+    const mq = window.matchMedia('(orientation: portrait)');
+    const apply = (matches) => {
+      document.body.classList.toggle('portrait', matches);
+      document.body.classList.toggle('landscape', !matches);
+    };
+    apply(mq.matches);
+    // Safari 旧版只支持 addListener
+    if (mq.addEventListener) mq.addEventListener('change', (e) => apply(e.matches));
+    else if (mq.addListener) mq.addListener((e) => apply(e.matches));
   },
 
   // ── HTTP API 辅助 ─────────────────────────────────
@@ -619,7 +639,7 @@ const App = {
 
   _updateLobbyCount(n) {
     document.getElementById('lobby-count').textContent = String(n);
-    document.getElementById('waiting-count').textContent = `${n} / 6`;
+    document.getElementById('waiting-count').textContent = `${n} / ${App.MAX_SEATS}`;
   },
 
   // ── 游戏内事件 ────────────────────────────────────
@@ -921,9 +941,9 @@ const App = {
       }
     }
 
-    // 清理离桌或不在本局中的物理对手座位
+    // 清理离桌或不在本局中的物理对手座位（相对座位 1..MAX_SEATS-1）
     const activeSeatIds = new Set((state.players || []).map(p => p.seatId));
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= App.MAX_SEATS - 1; i++) {
       if (!activeSeatIds.has(i)) {
         this.clearPlayerSeat(i);
       }

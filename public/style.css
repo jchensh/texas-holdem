@@ -271,12 +271,16 @@ input  { font-family: inherit; outline: none; }
   z-index: 20; /* 调高层级，保证盖在桌子 border 上面，绝不被挡住 */
 }
 
-/* 五个对手座位的位置 */
-#seat-1 { left:  3%; top: 66%; }
-#seat-2 { left: -2%; top: 30%; }
-#seat-3 { left: 14%; top:  0%; }
-#seat-4 { left: 58%; top:  0%; }
-#seat-5 { left: 84%; top: 30%; }
+/* 九个对手座位的位置（10-handed：英雄固定底部中央，对手环绕上半圈，左右对称） */
+#seat-1 { left:  6%; top: 62%; }
+#seat-2 { left: -2%; top: 40%; }
+#seat-3 { left:  4%; top: 18%; }
+#seat-4 { left: 22%; top:  2%; }
+#seat-5 { left: 44%; top: -3%; }
+#seat-6 { left: 66%; top:  2%; }
+#seat-7 { left: 84%; top: 18%; }
+#seat-8 { left: 90%; top: 40%; }
+#seat-9 { left: 80%; top: 62%; }
 
 .seat-cards { display: flex; gap: 3px; }
 
@@ -2032,6 +2036,103 @@ input  { font-family: inherit; outline: none; }
     display: none !important;
   }
 }
+
+
+/* ══════════════════════════════════════════
+   移动端竖屏专用布局（需求 2/3）
+   由 app.js 依据屏幕方向给 <body> 切换 .portrait class。
+   思路：不缩放整桌，而是把固定 860×530 牌桌场景改为相对尺寸，
+   重排 9 个对手座位为窄屏椭圆，操作区吸附到视口底部并加大热区。
+══════════════════════════════════════════ */
+body.portrait .game-header { height: 44px; padding: 0 8px; gap: 6px; }
+body.portrait .game-header .header-logo { font-size: 13px; line-height: 1.05; }
+body.portrait .header-center { font-size: 11px; gap: 5px; }
+body.portrait .header-chips-value { font-size: 13px; }
+body.portrait .header-right { gap: 4px; }
+body.portrait .header-right .btn-ghost,
+body.portrait .header-right button { padding: 5px 8px; font-size: 11px; }
+body.portrait .game-footer { display: none; }     /* 竖屏隐藏底部规则区，让位给牌桌 */
+body.portrait .game-sidebar { display: none !important; }
+
+body.portrait .game-main {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 8px 0 0;
+  overflow: hidden;
+}
+
+/* 牌桌场景：改用相对尺寸填满竖屏宽度 */
+body.portrait .table-scene {
+  width: 100vw;
+  height: 72vh;
+}
+
+/* 椭圆牌桌：覆盖固定 px 尺寸 */
+body.portrait .poker-table {
+  width: 76vw;
+  height: 26vh;
+  top: 36%;
+  border-width: 9px;
+}
+body.portrait .community-cards { gap: 5px; }
+body.portrait .pot-amount { font-size: 16px; }
+
+/* 9 个对手座位：窄屏椭圆环绕坐标（英雄仍固定底部中央，坐标内收避免出血到屏外） */
+body.portrait #seat-5 { left: 39%; top:  1%; }
+body.portrait #seat-4 { left: 19%; top:  5%; }
+body.portrait #seat-6 { left: 60%; top:  5%; }
+body.portrait #seat-3 { left:  4%; top: 18%; }
+body.portrait #seat-7 { left: 72%; top: 18%; }
+body.portrait #seat-2 { left:  2%; top: 33%; }
+body.portrait #seat-8 { left: 74%; top: 33%; }
+body.portrait #seat-1 { left:  6%; top: 47%; }
+body.portrait #seat-9 { left: 70%; top: 47%; }
+
+/* 对手座位整体压缩，避免窄屏挤爆 */
+body.portrait .seat-body { min-width: 0; padding: 3px 6px; gap: 5px; }
+body.portrait .seat-avatar { width: 26px; height: 26px; }
+body.portrait .seat-avatar.lg { width: 32px; height: 32px; }
+body.portrait .seat-name { font-size: 11px; }
+body.portrait .seat-chips-val { font-size: 10px; }
+body.portrait .seat-cards .card.sm { width: 20px; height: 28px; }
+
+/* 操作区：吸附到视口底部的全宽工具条 + 加大点按热区 */
+body.portrait .action-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  min-width: 0;
+  border-radius: 16px 16px 0 0;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  z-index: 100;
+  box-shadow: 0 -6px 20px rgba(0,0,0,.5);
+}
+body.portrait .action-buttons { gap: 10px; }
+body.portrait .btn-action {
+  flex: 1 1 auto;
+  padding: 14px 12px;
+  font-size: 16px;
+  min-height: 48px;          /* 触控友好热区 */
+}
+body.portrait .raise-wrap { flex: 1 1 100%; }
+body.portrait .raise-slider-row input[type=range] { height: 10px; }
+
+/* 英雄区：去掉 translateX 变换（否则它会成为 position:fixed 操作条的包含块，导致操作条无法吸附到视口底部），改为整行居中 */
+body.portrait .hero-zone {
+  left: 0;
+  right: 0;
+  width: 100%;
+  transform: none;
+  justify-content: center;
+  bottom: 6px;
+  gap: 10px;
+}
+
+/* 结算/大厅蒙层升级为全视口固定，避免被场景相对尺寸裁切 */
+body.portrait .settlement-overlay { position: fixed; inset: 0; }
 
 
 

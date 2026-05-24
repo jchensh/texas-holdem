@@ -21,4 +21,8 @@ module.exports = {
   SMALL_BLIND:       5,
   BIG_BLIND:         10,
   ACTION_TIMEOUT_MS: 30 * 1000,
+
+  // 单桌容量（V2：扩为最多 10 人入座）
+  MAX_SEATS:  10,  // 物理座位数，全部可入座下注
+  MAX_ONLINE: 10,  // 房间最大在线人数（坐下 + 旁观）
 };

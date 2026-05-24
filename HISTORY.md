@@ -633,6 +633,29 @@ index.html
 
 ---
 
+## Step 12 — V2 Phase 1：十人桌扩容与移动端竖屏适配（2026-05-25，待提交）
+
+**目标**：进入 V2 第一阶段（高优先级需求 1/2/3）。将牌桌从 6 物理座位扩容为最多 10 人入座，并为手机浏览器竖屏新增专用布局，依屏幕方向自动切换横/竖屏模式。
+
+**产出**：
+- `server/config.js` — 新增 `MAX_SEATS: 10`、`MAX_ONLINE: 10` 两个容量常量，集中管理单桌规模。
+- `server/table.js` — 座位数组改为 `Array(config.MAX_SEATS)`；房间在线上限改用 `config.MAX_ONLINE`；庄家顺时针轮换循环由写死的 `i<=6 / %6` 改为基于 `this.seats.length`。
+- `server/table.js#translateToRelative` — 视角相对座位旋转的取模基数由写死的 `6` 参数化为 `this.seats.length`（=10），使 10 座下每个玩家仍恒在自己屏幕底部、对手顺时针环绕。顺带修复一处既存 bug：`isDealer` 此前用绝对座位与「已被旋转过」的 `dealerSeat` 比较，现改为在旋转前捕获 `absDealer` 再比较。
+- `public/index.html` — 新增 `#seat-6`~`#seat-9` 四个对手席位 DOM（共 9 对手位 + 英雄区）。
+- `public/style.css` — 重排 `#seat-1`~`#seat-9` 为 10-handed 椭圆环绕坐标；新增 `body.portrait` 竖屏专用布局块（相对尺寸牌桌、窄屏座位坐标、操作区吸附视口底部并加大触控热区、隐藏底部规则区与侧栏、英雄区去除 translateX 变换以让固定操作条正确吸底）。
+- `public/js/app.js` — 新增 `App.MAX_SEATS=10` 常量；空座清理循环由 `1..5` 改为 `1..MAX_SEATS-1`；大厅人数分母 `/6` 改为 `/MAX_SEATS`；新增 `_setupOrientation()`，用 `matchMedia('(orientation: portrait)')` 监听屏幕方向，实时为 `<body>` 切换 `.portrait`/`.landscape`（满足需求 3 自动检测）。
+
+**关键决策与发现**：
+- **服务端早已具备视角相对旋转**（集中在 `table.js#translateToRelative`，由 `sendToSocket`/`broadcast` 自动套用），并非如初判存在「非 0 号位玩家英雄区显示错」的多人 bug。Phase 1B 实际工作因此从「新增旋转」收敛为「把旋转的取模基数参数化为 10」，改动更小、风险更低。
+- 相对旋转保留环形几何：`relative = (abs - viewer + N) % N`，空座以「空座」占位呈现（沿用既有渲染）。
+- 移动端按**屏幕方向**切换（非设备类型）：手机竖放→竖屏 UI，横放/桌面→沿用现有布局。
+
+**测试验证**：
+- 单元测试（hand-rank / pot 等）全绿；三个 E2E 脚本（step6 对局流、step7 历史、offline 通知）在 `PORT=3010` 独立运行**各自全部通过**（`npm test` 一把跑会因三脚本同时抢占单桌单例 Table 而互相干扰，属既有限制，非本次回归）。
+- 浏览器预览：登录进入牌局后，桌面横屏（1280×800）下 9 个对手席位沿椭圆均匀环绕、英雄区居底、均在视口内无裁切；手机竖屏（375×812）下 `body.portrait` 生效，9 席位收于窄屏宽度内、操作条吸附视口底部（650–812）且与英雄区无重叠、页面恰好占满一屏不溢出。无控制台报错。
+
+---
+
 ## V1 Roadmap
 
 | step | 目标 | 状态 |
