@@ -497,6 +497,7 @@ const App = {
     this._bindHistoryEvents();
     this._bindRaiseSlider();
     this._setupOrientation();
+    this._initAuthEffects();
     this._initAvatars();   // 需求7：加载头像选项 + 绑定注册选择器/换头像弹窗
 
     // 德州规则展开开关绑定
@@ -540,6 +541,33 @@ const App = {
     // Safari 旧版只支持 addListener
     if (mq.addEventListener) mq.addEventListener('change', (e) => apply(e.matches));
     else if (mq.addListener) mq.addListener((e) => apply(e.matches));
+  },
+
+  /**
+   * 登录页轻量视差舞台：只改 CSS 变量，不触碰认证状态。
+   * 低动效偏好下自动关闭鼠标追踪。
+   */
+  _initAuthEffects() {
+    const authBg = document.querySelector('.auth-bg');
+    if (!authBg || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const reset = () => {
+      authBg.style.setProperty('--auth-tilt-x', '0deg');
+      authBg.style.setProperty('--auth-tilt-y', '0deg');
+      authBg.style.setProperty('--auth-drift-x', '0px');
+      authBg.style.setProperty('--auth-drift-y', '0px');
+    };
+
+    authBg.addEventListener('pointermove', (event) => {
+      const rect = authBg.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width - 0.5;
+      const y = (event.clientY - rect.top) / rect.height - 0.5;
+      authBg.style.setProperty('--auth-tilt-x', `${x * 5}deg`);
+      authBg.style.setProperty('--auth-tilt-y', `${y * -4}deg`);
+      authBg.style.setProperty('--auth-drift-x', `${x * 14}px`);
+      authBg.style.setProperty('--auth-drift-y', `${y * 10}px`);
+    });
+    authBg.addEventListener('pointerleave', reset);
   },
 
   // ── HTTP API 辅助 ─────────────────────────────────
@@ -631,6 +659,8 @@ const App = {
   // ── 认证 ──────────────────────────────────────────
 
   _bindAuthEvents() {
+    const authBg = document.querySelector('.auth-bg');
+
     // 登录/注册标签切换
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -639,6 +669,7 @@ const App = {
         document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById(`form-${tab}`).classList.add('active');
+        if (authBg) authBg.classList.toggle('register-active', tab === 'register');
       });
     });
 
