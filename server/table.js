@@ -958,18 +958,27 @@ class Table {
     }
     
     const realUsername = user.username; // 拿真实的大小写用户名
-    const newChips = user.chips + amount;
-    
+    // 支持加/减：减筹码时 floor 到 0，避免出现负筹码；effectiveDelta 是实际生效的增量
+    const newChips = Math.max(0, user.chips + amount);
+    const effectiveDelta = newChips - user.chips;
+
+    // 筹码无实际变化（如对已为 0 的玩家继续扣减），直接返回，不广播
+    if (effectiveDelta === 0) {
+      return { success: true, message: `玩家 ${realUsername} 筹码无变化（当前 ${newChips}）` };
+    }
+    const isAdd = effectiveDelta > 0;
+    const absDelta = Math.abs(effectiveDelta);
+
     // 2. 更新数据库
     db.prepare('UPDATE users SET chips = ? WHERE id = ?').run(newChips, user.id);
-    
+
     // 3. 更新大厅旁观者（如果他在旁观）
     for (const [socketId, spec] of this.spectators.entries()) {
       if (spec.username.toLowerCase() === targetName) {
         spec.chips = newChips;
       }
     }
-    
+
     // 4. 更新物理座位上的筹码（如果他已落座）
     const seatIndex = this.seats.findIndex(s => s && s.username.toLowerCase() === targetName);
     if (seatIndex !== -1) {
@@ -977,31 +986,67 @@ class Table {
       // 广播给所有人，让他们知道该座位筹码变了
       this.broadcast('chips_update', { seatId: seatIndex, chips: newChips });
     }
-    
-    // 5. 更新德州引擎中的筹码（如果游戏正在打且他在打）
+
+    // 5. 更新德州引擎中的筹码（如果游戏正在打且他在打）；引擎手头筹码同样不低于 0
     if (this.game && this.game.phase !== 'ended') {
       const enginePlayer = this.game.players.find(p => p.username.toLowerCase() === targetName);
       if (enginePlayer) {
-        enginePlayer.chips += amount;
+        enginePlayer.chips = Math.max(0, enginePlayer.chips + effectiveDelta);
       }
     }
-    
-    // 6. 全局弹窗广播给所有人！
+
+    // 6. 全局弹窗广播给所有人（区分加 / 扣）
     this.broadcast('global_notification', {
       type: 'buyin',
       username: realUsername,
       seatId: seatIndex,
-      addedAmount: amount,
+      addedAmount: effectiveDelta,
       totalChips: newChips,
-      message: `管理员为玩家 <strong>[${realUsername}]</strong> 额外Buyin充值了 <strong>${amount}</strong> 筹码！<br>当前总筹码量为 <strong>${newChips}</strong>。`
+      message: isAdd
+        ? `管理员为玩家 <strong>[${realUsername}]</strong> 充值了 <strong>${absDelta}</strong> 筹码！<br>当前总筹码量为 <strong>${newChips}</strong>。`
+        : `管理员扣除了玩家 <strong>[${realUsername}]</strong> 的 <strong>${absDelta}</strong> 筹码。<br>当前总筹码量为 <strong>${newChips}</strong>。`
     });
-    
+
     // 7. 同步大厅状态和管理员状态
     this.syncLobbyState();
     this.notifyAdmin();
-    
-    console.log(`[Table] 管理员充值: 玩家 ${realUsername} +${amount} 筹码，当前总计: ${newChips}`);
-    return { success: true, message: `成功为玩家 ${realUsername} 充值 ${amount} 筹码，当前一共有 ${newChips}` };
+
+    console.log(`[Table] 管理员调整筹码: 玩家 ${realUsername} ${isAdd ? '+' : '-'}${absDelta}，当前总计: ${newChips}`);
+    return {
+      success: true,
+      message: isAdd
+        ? `成功为玩家 ${realUsername} 充值 ${absDelta} 筹码，当前一共有 ${newChips}`
+        : `成功扣除玩家 ${realUsername} 的 ${absDelta} 筹码，当前一共有 ${newChips}`
+    };
+  }
+
+  // ── 需求8(GM)：删除玩家（先踢下线，再级联清理账号与手牌历史） ──
+  deletePlayer(username) {
+    const targetName = String(username).toLowerCase();
+    const user = db.prepare('SELECT id, username FROM users WHERE LOWER(username) = ?').get(targetName);
+    if (!user) {
+      return { success: false, message: `未找到玩家 ${username}` };
+    }
+    const realUsername = user.username;
+
+    // 1. 若该玩家当前在线（落座或旁观），先踢下线、释放座位、强制结束其手牌参与
+    this.kickPlayer(realUsername);
+
+    // 2. 级联删除：先删手牌历史（避开外键约束）再删用户，原子事务
+    let removed;
+    try {
+      removed = db.deleteUserCascade(user.id);
+    } catch (err) {
+      console.error('[Table] 删除玩家失败:', err.message);
+      return { success: false, message: `删除玩家 ${realUsername} 失败：${err.message}` };
+    }
+
+    // 3. 同步大厅与管理后台状态
+    this.syncLobbyState();
+    this.notifyAdmin();
+
+    console.log(`[Table] 管理员删除玩家: ${realUsername} (id=${user.id})，连带清理 ${removed.removedHands} 条手牌历史`);
+    return { success: true, message: `已删除玩家 ${realUsername}，并清理其 ${removed.removedHands} 条对局历史` };
   }
 }
 

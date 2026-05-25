@@ -82,6 +82,18 @@ db.saveHandResults = db.transaction((handId, endedAt, players, actionLog, commun
   }
 });
 
+// ── 需求8(GM)：删除玩家级联清理 ───────────────────────────
+// hand_history 的外键未声明 ON DELETE CASCADE，且 foreign_keys=ON，
+// 直接删 users 会被外键拦住，所以必须「先删该用户的手牌历史，再删用户」，并包成原子事务。
+const deleteHistoryByUserStmt = db.prepare('DELETE FROM hand_history WHERE user_id = ?');
+const deleteUserStmt          = db.prepare('DELETE FROM users WHERE id = ?');
+
+db.deleteUserCascade = db.transaction((userId) => {
+  const removedHands = deleteHistoryByUserStmt.run(userId).changes;
+  const removedUser  = deleteUserStmt.run(userId).changes;
+  return { removedHands, removedUser };
+});
+
 module.exports = db;
 
 

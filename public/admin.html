@@ -1550,11 +1550,23 @@
 
       // 管理端操作结果反馈
       socket.on('admin_action_result', (res) => {
-        if (res.action === 'kick' || res.action === 'adjust_chips') {
-          if (res.success) {
-            showToast(res.message, 'success');
-          } else {
-            showToast(res.message, 'error');
+        if (res.action === 'kick' || res.action === 'adjust_chips' || res.action === 'delete_player') {
+          showToast(res.message, res.success ? 'success' : 'error');
+        }
+
+        if (res.success && res.action === 'delete_player') {
+          // 删除成功：关闭详情弹窗并刷新注册玩家表
+          closePlayerModal();
+          window.currentDetailPlayer = null;
+          fetchPlayers();
+        }
+
+        if (res.success && res.action === 'adjust_chips') {
+          // 筹码调整成功：刷新注册玩家表筹码；若详情弹窗正开着该玩家，重载弹窗
+          fetchPlayers();
+          const overlay = document.getElementById('player-modal-overlay');
+          if (window.currentDetailPlayer && overlay && overlay.classList.contains('active')) {
+            openPlayerDetail(window.currentDetailPlayer.id);
           }
         }
       });
@@ -1821,8 +1833,35 @@
     }
 
     function triggerAdjustChips(username, amount) {
-      console.log(`[Admin] 发送加筹码指令: 玩家: ${username}, 金额: ${amount}`);
+      console.log(`[Admin] 发送筹码调整指令: 玩家: ${username}, 金额: ${amount}`);
       socket.emit('admin_adjust_chips', { username, amount });
+    }
+
+    // ── 需求8(GM)：玩家详情弹窗内的操作（读 currentDetailPlayer + 输入框） ──
+    function gmAdjust(sign) {
+      const input = document.getElementById('gm-chip-amount');
+      const val = Math.abs(parseInt(input ? input.value : '', 10));
+      if (!val || val <= 0) { showToast('请输入正确的筹码数额！', 'error'); return; }
+      if (!window.currentDetailPlayer) return;
+      triggerAdjustChips(window.currentDetailPlayer.username, sign * val);
+    }
+
+    function gmKick() {
+      if (!window.currentDetailPlayer) return;
+      triggerKick(window.currentDetailPlayer.username);
+    }
+
+    function gmDelete() {
+      if (!window.currentDetailPlayer) return;
+      triggerDeletePlayer(window.currentDetailPlayer.username);
+    }
+
+    function triggerDeletePlayer(username) {
+      const ans = prompt(`⚠️ 危险操作：删除玩家将永久清除其账号与全部对局历史，无法恢复！\n如确认删除，请输入该玩家用户名【${username}】以二次确认：`);
+      if (ans === null) return;                          // 用户取消
+      if (ans.trim() !== username) { showToast('输入的用户名不匹配，已取消删除', 'error'); return; }
+      console.log('[Admin] 发送删除玩家指令:', username);
+      socket.emit('admin_delete_player', { username });
     }
 
     // ══════════════════════════════════════════
@@ -2001,6 +2040,7 @@
         const res = await fetch(`/api/admin/player/${id}`, { credentials: 'same-origin' });
         if (!res.ok) { content.innerHTML = '<div style="padding:30px;text-align:center;color:var(--red);">加载失败</div>'; return; }
         const { player, history } = await res.json();
+        window.currentDetailPlayer = { id: player.id, username: player.username };
         const date = new Date(player.created_at);
         const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
         let historyRows = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px 0;">暂无对局历史</td></tr>';
@@ -2021,6 +2061,18 @@
             <div class="pm-stat"><span class="v" style="color:var(--gold);">${player.chips}</span><span class="l">当前筹码</span></div>
             <div class="pm-stat"><span class="v" style="color:${player.lifetime_profit>=0?'#22c55e':'#ef4444'};">${player.lifetime_profit>=0?'+':''}${player.lifetime_profit}</span><span class="l">终生净收益</span></div>
             <div class="pm-stat"><span class="v">${history ? history.length : 0}</span><span class="l">近期手牌数</span></div>
+          </div>
+          <div style="margin:0 0 18px;padding:14px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:10px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">⚙️ GM 操作</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+              <input id="gm-chip-amount" type="number" min="1" placeholder="筹码数额" style="width:120px;padding:7px 10px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:6px;color:#f8fafc;font-size:13px;">
+              <button onclick="gmAdjust(1)" style="padding:7px 14px;border:1px solid rgba(34,197,94,0.5);background:rgba(34,197,94,0.12);color:#22c55e;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">＋ 加筹码</button>
+              <button onclick="gmAdjust(-1)" style="padding:7px 14px;border:1px solid rgba(245,158,11,0.5);background:rgba(245,158,11,0.12);color:#f59e0b;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">－ 扣筹码</button>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="gmKick()" style="padding:7px 14px;border:1px solid rgba(245,158,11,0.5);background:transparent;color:#f59e0b;border-radius:6px;cursor:pointer;font-size:13px;">踢下线</button>
+              <button onclick="gmDelete()" style="padding:7px 14px;border:1px solid rgba(239,68,68,0.6);background:rgba(239,68,68,0.12);color:#ef4444;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">🗑 删除玩家</button>
+            </div>
           </div>
           <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">最近对局（最多 50 手）</h4>
           <table>
