@@ -78,5 +78,6 @@ const SocketClient = {
     socket.on('error',          (data) => App.showError(data.message));
     socket.on('global_notification', (data) => App.showGlobalNotification(data));
     socket.on('player_show_hand', (data) => App.onPlayerShowHand(data));
+    socket.on('avatar_update',  (data) => App.onAvatarUpdate(data));
   },
 };

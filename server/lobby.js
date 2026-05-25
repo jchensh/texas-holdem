@@ -8,7 +8,7 @@
 const db = require('./db');
 const table = require('./table');
 
-const findById = db.prepare('SELECT id, username, chips FROM users WHERE id = ?');
+const findById = db.prepare('SELECT id, username, chips, avatar FROM users WHERE id = ?');
 
 function attach(io) {
   // 注入 io 实例给 table

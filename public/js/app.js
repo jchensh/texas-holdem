@@ -497,6 +497,7 @@ const App = {
     this._bindHistoryEvents();
     this._bindRaiseSlider();
     this._setupOrientation();
+    this._initAvatars();   // 需求7：加载头像选项 + 绑定注册选择器/换头像弹窗
 
     // 德州规则展开开关绑定
     const toggleBtn = document.getElementById('btn-toggle-rules');
@@ -670,7 +671,7 @@ const App = {
       if (password !== confirm) { errEl.textContent = '两次密码不一致'; return; }
 
       try {
-        const { user } = await this._apiPost('/api/register', { username, password });
+        const { user } = await this._apiPost('/api/register', { username, password, avatar: this._selectedRegAvatar });
         this._onLoginSuccess(user);
       } catch (err) {
         errEl.textContent = err.message || '注册失败';
@@ -684,6 +685,7 @@ const App = {
     document.getElementById('header-username').textContent = user.username;
     document.getElementById('header-chips').textContent   = user.chips;
     document.getElementById('hero-initials').textContent  = user.username.charAt(0).toUpperCase();
+    this._setAvatar(document.querySelector('#seat-0 .seat-avatar'), { avatar: user.avatar, username: user.username });
     document.getElementById('hero-name').textContent      = user.username;
     document.getElementById('hero-chips').textContent     = user.chips;
     document.getElementById('history-chips').textContent  = user.chips;
@@ -695,6 +697,116 @@ const App = {
     this._showLobby();
     // session cookie 同源握手时浏览器自动带上
     SocketClient.connect();
+  },
+
+  // ── 需求7：头像 ──────────────────────────────────
+  _avatarUrl(id) { return `/avatars/${id}.svg`; },
+
+  // 渲染某个 .seat-avatar 容器：有 avatar 显示图片，否则回退首字母
+  _setAvatar(containerEl, { avatar, username } = {}) {
+    if (!containerEl) return;
+    let img = containerEl.querySelector('.avatar-img');
+    const initials = containerEl.querySelector('.avatar-initials');
+    if (avatar) {
+      if (!img) {
+        img = document.createElement('img');
+        img.className = 'avatar-img';
+        containerEl.appendChild(img);
+      }
+      img.src = this._avatarUrl(avatar);
+      img.alt = username || '';
+      img.style.display = '';
+      if (initials) initials.style.display = 'none';
+    } else {
+      if (img) img.style.display = 'none';
+      if (initials) {
+        initials.style.display = '';
+        initials.textContent = username ? username.charAt(0).toUpperCase() : '?';
+      }
+    }
+  },
+
+  // 加载可选头像，初始化注册页选择器 + 换头像弹窗
+  async _initAvatars() {
+    try {
+      const res  = await fetch('/api/avatars', { credentials: 'same-origin' });
+      const data = await res.json();
+      this._avatarOptions = Array.isArray(data.avatars) ? data.avatars : [];
+    } catch (e) {
+      this._avatarOptions = [];
+    }
+    // 默认选中第一个，供注册提交使用
+    this._selectedRegAvatar = this._avatarOptions[0] ? this._avatarOptions[0].id : null;
+    this._renderAvatarGrid(
+      document.getElementById('reg-avatar-grid'),
+      this._selectedRegAvatar,
+      (id) => { this._selectedRegAvatar = id; }
+    );
+
+    const btn = document.getElementById('btn-avatar');
+    if (btn) btn.addEventListener('click', () => this._openAvatarModal());
+    const close = document.getElementById('avatar-modal-close');
+    if (close) close.addEventListener('click', () => this._closeAvatarModal());
+    const overlay = document.getElementById('avatar-modal-overlay');
+    if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) this._closeAvatarModal(); });
+  },
+
+  // 把头像网格渲染进 container；点选回调 onPick(id)
+  _renderAvatarGrid(container, selectedId, onPick) {
+    if (!container) return;
+    container.innerHTML = '';
+    (this._avatarOptions || []).forEach(opt => {
+      const cell = document.createElement('div');
+      cell.className = 'avatar-opt' + (opt.id === selectedId ? ' selected' : '');
+      cell.innerHTML = `<img src="${opt.url}" alt="${opt.id}">`;
+      cell.addEventListener('click', () => {
+        container.querySelectorAll('.avatar-opt').forEach(c => c.classList.remove('selected'));
+        cell.classList.add('selected');
+        onPick(opt.id);
+      });
+      container.appendChild(cell);
+    });
+  },
+
+  _openAvatarModal() {
+    const current = this.state.user ? this.state.user.avatar : null;
+    this._renderAvatarGrid(
+      document.getElementById('avatar-modal-grid'),
+      current,
+      (id) => this._changeAvatar(id)
+    );
+    document.getElementById('avatar-modal-overlay').classList.add('active');
+  },
+
+  _closeAvatarModal() {
+    document.getElementById('avatar-modal-overlay').classList.remove('active');
+  },
+
+  // 提交更换头像（服务端写库 + 按用户名广播给全桌）
+  async _changeAvatar(id) {
+    try {
+      await this._apiPost('/api/avatar', { avatar: id });
+      if (this.state.user) this.state.user.avatar = id;
+      this._setAvatar(document.querySelector('#seat-0 .seat-avatar'),
+        { avatar: id, username: this.state.user ? this.state.user.username : null });
+      this._closeAvatarModal();
+    } catch (e) {
+      console.error('[App] 更换头像失败:', e.message);
+    }
+  },
+
+  // 收到头像更新广播：按用户名定位席位（与座位旋转无关）
+  onAvatarUpdate({ username, avatar }) {
+    if (this.state.user && username === this.state.user.username) {
+      this.state.user.avatar = avatar;
+      this._setAvatar(document.querySelector('#seat-0 .seat-avatar'), { avatar, username });
+    }
+    const players = (this.state.game && this.state.game.players) || [];
+    const p = players.find(pl => pl.username === username);
+    if (p && p.seatId !== 0) {
+      p.avatar = avatar;
+      this._setAvatar(document.querySelector(`#seat-${p.seatId} .seat-avatar`), { avatar, username });
+    }
   },
 
   // ── 大厅蒙层 / 等待角标 ───────────────────────────
@@ -1131,7 +1243,7 @@ const App = {
       nameEl.innerHTML = player.username + badgeHtml;
     }
     seat.querySelector('.seat-chips-val').textContent = `${player.chips}`;
-    seat.querySelector('.avatar-initials').textContent = player.username.charAt(0).toUpperCase();
+    this._setAvatar(seat.querySelector('.seat-avatar'), player);
 
     const betBadge = seat.querySelector('.seat-bet-badge');
     if (player.bet) {
@@ -1185,7 +1297,7 @@ const App = {
     if (!seat) return;
     seat.querySelector('.seat-name').textContent      = '空座';
     seat.querySelector('.seat-chips-val').textContent = '–';
-    seat.querySelector('.avatar-initials').textContent = '?';
+    this._setAvatar(seat.querySelector('.seat-avatar'), { avatar: null, username: null });
     seat.querySelector('.seat-bet-badge').hidden = true;
     seat.querySelector('.seat-cards').style.opacity = '1';
     seat.querySelector('.seat-cards').innerHTML  = ''; // 空座时不显示手牌占位背部
@@ -1475,6 +1587,7 @@ const App = {
         heroSeat.classList.remove('offline');
       }
     }
+    this._setAvatar(document.querySelector('#seat-0 .seat-avatar'), { avatar: player.avatar, username: player.username });
     const heroNameEl = document.getElementById('hero-name');
     if (heroNameEl && this.state.user) {
       heroNameEl.textContent = this.state.user.username;

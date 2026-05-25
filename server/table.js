@@ -91,7 +91,7 @@ class Table {
     for (const spec of this.spectators.values()) {
       if (spec.userId === userId) {
         // 多 Tab 旁观，直接记录（沿用该用户已有的旁观起始时间）
-        this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket, connectedAt: spec.connectedAt || Date.now() });
+        this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, avatar: user.avatar, socket, connectedAt: spec.connectedAt || Date.now() });
         socket.data.seatId = null;
         this.syncLobbyState();
         if (this.game) {
@@ -117,6 +117,7 @@ class Table {
         userId,
         username: user.username,
         chips: user.chips,
+        avatar: user.avatar,
         socketIds: new Set([socket.id]),
         connectedAt: Date.now()   // 入座时间，用于后台统计在线时长
       };
@@ -130,7 +131,7 @@ class Table {
       });
     } else {
       // 满员或者游戏正在进行中，先作为观战者
-      this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket, connectedAt: Date.now() });
+      this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, avatar: user.avatar, socket, connectedAt: Date.now() });
       socket.data.seatId = null;
       console.log(`[Table] 玩家 ${user.username} 作为旁观者加入 (${socket.id})`);
     }
@@ -547,6 +548,7 @@ class Table {
           userId: spec.userId,
           username: spec.username,
           chips: spec.chips,
+          avatar: spec.avatar,
           socketIds: new Set([socketId]),
           connectedAt: spec.connectedAt || Date.now()   // 沿用其旁观期间的在线起始时间
         };
@@ -698,10 +700,37 @@ class Table {
       const seat = this.seats.find(s => s && s.username === p.username);
       if (seat) {
         p.isOffline = (seat.socketIds.size === 0);
+        p.avatar = seat.avatar || null;   // 需求7：把座位头像带进玩家快照，供前端席位渲染
       } else {
         p.isOffline = false;
+        p.avatar = null;
       }
     });
+  }
+
+  // ── 需求7：更换头像后实时同步座位并广播（按用户名广播，与座位旋转无关） ──
+  changePlayerAvatar(userId, avatar) {
+    let username = null;
+
+    const seat = this.seats.find(s => s && s.userId === userId);
+    if (seat) { seat.avatar = avatar; username = seat.username; }
+
+    for (const spec of this.spectators.values()) {
+      if (spec.userId === userId) { spec.avatar = avatar; username = username || spec.username; }
+    }
+
+    // 不在线时从库里取用户名用于广播
+    if (!username) {
+      const u = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+      username = u ? u.username : null;
+    }
+
+    if (username && this.io) {
+      // 按用户名广播：各客户端找到显示该用户名的席位并换头像，无需相对座位转换
+      this.io.emit('avatar_update', { username, avatar });
+    }
+    this.notifyAdmin();
+    return { success: true };
   }
 
   /**

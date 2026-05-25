@@ -57,6 +57,14 @@ try {
   // 忽略列已存在的错误
 }
 
+// 热升级（需求7）：为 users 表添加 avatar 字段（头像 id，如 'avatar-07'；NULL 表示未设置）
+try {
+  db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+  console.log('[db] 成功升级 users 表，添加 avatar 字段');
+} catch (err) {
+  // 忽略列已存在的错误
+}
+
 // ── Step 6: 筹码更新与手牌历史持久化事务 ───────────────────
 const updateChipsStmt = db.prepare('UPDATE users SET chips = ?, lifetime_profit = lifetime_profit + ? WHERE id = ?');
 const insertHistoryStmt = db.prepare(`
