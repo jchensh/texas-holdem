@@ -27,6 +27,9 @@ const AudioEngine = {
   bgm: null,
   bgmPlaying: false,
   proceduralInterval: null,
+  playlist: [],        // 本地曲库 [{ file, name, url }]，由后端扫描 public/audio/ 得到
+  currentIndex: 0,     // 当前播放曲目索引
+  _errorStreak: 0,     // 连续加载失败计数，用于判断是否整张列表都不可用
 
   init() {
     // 兼容浏览器静音唤醒策略
@@ -41,18 +44,31 @@ const AudioEngine = {
     document.addEventListener('click', initCtx, { once: true });
     document.addEventListener('touchstart', initCtx, { once: true });
 
-    // 初始化 BGM 实例 (Mixkit 极其舒缓优雅的爵士乐)
-    this.bgm = new Audio('https://assets.mixkit.co/music/preview/mixkit-smooth-jazz-2067.mp3');
-    this.bgm.loop = true;
-    this.bgm.volume = 0.06; // 细腻舒适的环境音量
+    // BGM 播放器实例（src 在 playTrack 时按曲库设置，不再写死任何外部 CDN）
+    this.bgm = new Audio();
+    this.bgm.loop = false;   // 单曲不循环，靠 'ended' 自动切下一首（整张列表循环）
+    this.bgm.volume = 0.18;  // 本地 mp3 通常比之前的环境音量响，调到舒适区间
 
-    // 监听网络加载错误或跨域拦截，无缝降级到 procedural 实时合成
+    // 一首播完自动切下一首（到列表末尾回到第一首）
+    this.bgm.addEventListener('ended', () => {
+      if (this.bgmPlaying && this.playlist.length) this.nextTrack();
+    });
+
+    // 当前曲目加载失败：先尝试下一首；若整张列表都不可用，降级到 Web Audio 合成爵士乐
     this.bgm.addEventListener('error', () => {
-      console.warn('[AudioEngine] 外部爵士乐 BGM 加载失败，无缝降级至 Web Audio 实时合成 Lo-Fi 爵士乐。');
-      if (this.bgmPlaying && !this.proceduralInterval) {
+      if (!this.bgmPlaying) return;
+      this._errorStreak += 1;
+      if (this.playlist.length && this._errorStreak < this.playlist.length) {
+        console.warn('[AudioEngine] 曲目加载失败，尝试下一首。');
+        this.nextTrack();
+      } else {
+        console.warn('[AudioEngine] 本地曲库不可用，降级至 Web Audio 实时合成 Lo-Fi 爵士乐。');
         this._startProceduralJazz();
       }
     });
+
+    // 异步拉取后端扫描得到的本地曲库（不阻塞启动）
+    this._loadPlaylist();
 
     // 读取本地音乐偏好
     const savedMusic = localStorage.getItem('poker_night_bgm');
@@ -73,13 +89,13 @@ const AudioEngine = {
     const btn = document.getElementById('btn-music');
     if (btn) {
       if (play) {
-        btn.textContent = '🎷 爵士乐: 开';
+        btn.textContent = '🎵 音乐: 开';
         btn.style.borderColor = 'var(--gold)';
         btn.style.background = 'rgba(201, 168, 76, 0.15)';
         btn.style.boxShadow = '0 0 10px rgba(201, 168, 76, 0.4)';
         btn.style.color = 'var(--gold-light)';
       } else {
-        btn.textContent = '🎷 爵士乐: 关';
+        btn.textContent = '🎵 音乐: 关';
         btn.style.borderColor = 'rgba(201, 168, 76, 0.3)';
         btn.style.background = 'transparent';
         btn.style.boxShadow = 'none';
@@ -90,6 +106,7 @@ const AudioEngine = {
     if (!play) {
       if (this.bgm) this.bgm.pause();
       this._stopProceduralJazz();
+      this._updateMusicUI();
       return;
     }
 
@@ -97,16 +114,74 @@ const AudioEngine = {
       this.ctx.resume();
     }
 
-    this.bgm.play().then(() => {
-      this._stopProceduralJazz(); // 加载成功则停用合成音乐
-    }).catch(() => {
-      console.log('[AudioEngine] 浏览器自动播放拦截，改用 Web Audio 实时合成优雅的 Lo-Fi 爵士乐。');
+    // 有本地曲库就播当前曲目；曲库为空则降级到 Web Audio 合成爵士乐兜底
+    if (this.playlist.length) {
+      this.playTrack(this.currentIndex);
+    } else {
+      console.log('[AudioEngine] 本地曲库为空，使用 Web Audio 实时合成 Lo-Fi 爵士乐兜底。');
       this._startProceduralJazz();
-    });
+    }
+    this._updateMusicUI();
   },
 
   toggleBGM() {
     this.setBGM(!this.bgmPlaying);
+  },
+
+  // 拉取后端扫描 public/audio/ 得到的本地曲库
+  async _loadPlaylist() {
+    try {
+      const res  = await fetch('/api/music/playlist', { credentials: 'same-origin' });
+      const data = await res.json();
+      this.playlist = Array.isArray(data.tracks) ? data.tracks : [];
+      console.log(`[AudioEngine] 已加载本地曲库 ${this.playlist.length} 首。`);
+    } catch (e) {
+      this.playlist = [];
+      console.warn('[AudioEngine] 加载本地曲库失败，将使用合成爵士乐兜底。', e);
+    }
+    this._updateMusicUI();
+    // 若用户已开启音乐、且此前在用合成兜底，曲库就绪后无缝切到真实曲目
+    if (this.bgmPlaying && this.playlist.length && this.proceduralInterval) {
+      this.playTrack(this.currentIndex);
+    }
+  },
+
+  // 播放指定索引的曲目（索引自动取模，支持越界回绕）
+  playTrack(index) {
+    if (!this.playlist.length) return;
+    const n = this.playlist.length;
+    this.currentIndex = ((index % n) + n) % n;
+    const track = this.playlist[this.currentIndex];
+    this._stopProceduralJazz();   // 切到真实曲目，停掉合成兜底
+    this.bgm.src = track.url;
+    this.bgm.play().then(() => {
+      this._errorStreak = 0;      // 成功播放，重置失败计数
+    }).catch(() => {
+      console.log('[AudioEngine] 浏览器自动播放被拦截，等待用户交互后再播。');
+    });
+    this._updateMusicUI();
+  },
+
+  // 切到下一首（到列表末尾回到第一首）
+  nextTrack() {
+    if (!this.playlist.length) return;
+    this.playTrack(this.currentIndex + 1);
+  },
+
+  // 同步「下一首」按钮可见性与当前曲名显示
+  _updateMusicUI() {
+    const nextBtn = document.getElementById('btn-music-next');
+    const label   = document.getElementById('music-track');
+    const hasList = this.playlist.length > 0;
+    if (nextBtn) nextBtn.style.display = hasList ? '' : 'none';
+    if (label) {
+      if (hasList && this.bgmPlaying) {
+        label.textContent = '♪ ' + this.playlist[this.currentIndex].name;
+        label.style.display = '';
+      } else {
+        label.style.display = 'none';
+      }
+    }
   },
 
   // 纯原生振荡器生成 100% 离线、零延迟高清音效
@@ -667,6 +742,10 @@ const App = {
 
     document.getElementById('btn-music').addEventListener('click', () => {
       AudioEngine.toggleBGM();
+    });
+
+    document.getElementById('btn-music-next').addEventListener('click', () => {
+      AudioEngine.nextTrack();
     });
 
     // 大厅蒙层的关闭按钮 + 角标点击切换

@@ -15,6 +15,7 @@ const config      = require('./config');
 const auth        = require('./auth');
 const lobby       = require('./lobby');
 const adminRoutes = require('./admin-routes');
+const musicRoutes = require('./music-routes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -39,6 +40,7 @@ app.use(sessionMiddleware);
 
 // 业务路由（管理后台先于通用 /api 挂载，确保 /api/admin/* 优先命中其专属鉴权路由）
 app.use('/api/admin', adminRoutes.router);
+app.use('/api/music', musicRoutes.router);
 app.use('/api', auth.router);
 
 // 前端静态文件（最后挂，让 /api 路由优先匹配）
