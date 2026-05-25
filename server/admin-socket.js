@@ -66,7 +66,18 @@ console.error = function(...args) {
 module.exports = {
   init(io) {
     adminNamespaceInstance = io.of('/admin');
-    
+
+    // 鉴权中间件：只有带管理员登录态的 session 才能连入该命名空间
+    adminNamespaceInstance.use((socket, next) => {
+      const session = socket.request.session;
+      if (session && session.isAdmin) {
+        return next();
+      }
+      const err = new Error('未授权：需要管理员登录');
+      err.data = { code: 'UNAUTHORIZED' };
+      next(err);
+    });
+
     adminNamespaceInstance.on('connection', (socket) => {
       // 使用原始 console.log 防止触发 Socket 内部日志再次广播
       originalLog.apply(console, [`[AdminSocket] 管理员已连接: ${socket.id}`]);
@@ -94,21 +105,21 @@ module.exports = {
         });
       });
 
-      // 4. 监听管理员调整筹码动作
+      // 4. 监听管理员调整筹码动作（正数为加、负数为减；0 不合法）
       socket.on('admin_adjust_chips', (data) => {
         const { username, amount } = data;
         const parseAmount = parseInt(amount, 10);
-        if (!username || isNaN(parseAmount) || parseAmount <= 0) {
+        if (!username || isNaN(parseAmount) || parseAmount === 0) {
           return socket.emit('admin_action_result', {
             action: 'adjust_chips',
             success: false,
-            message: '充值金额不合法'
+            message: '筹码调整数额不合法（需为非零整数，正数加、负数减）'
           });
         }
-        
-        originalLog.apply(console, [`[AdminSocket] 收到管理员筹码充值指令, 目标: ${username}, 数额: ${parseAmount}`]);
+
+        originalLog.apply(console, [`[AdminSocket] 收到管理员筹码调整指令, 目标: ${username}, 数额: ${parseAmount}`]);
         const result = table.adjustPlayerChips(username, parseAmount);
-        
+
         // 反馈结果给操作人
         socket.emit('admin_action_result', {
           action: 'adjust_chips',
@@ -117,7 +128,23 @@ module.exports = {
           message: result.message
         });
       });
-      
+
+      // 5. 监听管理员删除玩家动作（级联清理账号与手牌历史）
+      socket.on('admin_delete_player', (data) => {
+        const { username } = data;
+        if (!username) return;
+
+        originalLog.apply(console, [`[AdminSocket] 收到管理员删除玩家指令, 目标: ${username}`]);
+        const result = table.deletePlayer(username);
+
+        socket.emit('admin_action_result', {
+          action: 'delete_player',
+          username,
+          success: result.success,
+          message: result.message
+        });
+      });
+
       socket.on('disconnect', () => {
         originalLog.apply(console, [`[AdminSocket] 管理员连接断开: ${socket.id}`]);
       });

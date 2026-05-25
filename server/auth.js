@@ -14,6 +14,7 @@ const bcrypt  = require('bcrypt');
 const db      = require('./db');
 const config  = require('./config');
 const { evaluate7 } = require('./engine/hand-rank');
+const { isValidAvatar, defaultAvatar, listAvatars } = require('./avatar-utils');
 
 const BCRYPT_ROUNDS = 10;
 // 用户名：3-16 位，字母/数字/下划线/中文
@@ -76,14 +77,14 @@ function simplifyUserAgent(uaRaw) {
 
 const queries = {
   findByUsername: db.prepare(
-    'SELECT id, username, password_hash, chips FROM users WHERE username = ?'
+    'SELECT id, username, password_hash, chips, avatar FROM users WHERE username = ?'
   ),
   findById: db.prepare(
-    'SELECT id, username, chips FROM users WHERE id = ?'
+    'SELECT id, username, chips, avatar FROM users WHERE id = ?'
   ),
   insert: db.prepare(`
-    INSERT INTO users (username, password_hash, chips, created_at)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO users (username, password_hash, chips, avatar, created_at)
+    VALUES (?, ?, ?, ?, ?)
   `),
   updateLoginInfo: db.prepare(
     'UPDATE users SET last_login_ip = ?, last_login_ua = ? WHERE id = ?'
@@ -116,10 +117,15 @@ router.post('/register', async (req, res) => {
     return res.status(409).json({ message: '用户名已被占用' });
   }
 
+  // 头像：合法则采用，否则按用户名稳定分配一个默认头像
+  const avatar = isValidAvatar((req.body || {}).avatar)
+    ? req.body.avatar
+    : defaultAvatar(username);
+
   try {
     const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const { lastInsertRowid: id } = queries.insert.run(
-      username, hash, config.STARTING_CHIPS, Date.now()
+      username, hash, config.STARTING_CHIPS, avatar, Date.now()
     );
 
     // 记录审计信息
@@ -132,7 +138,7 @@ router.post('/register', async (req, res) => {
     }
 
     req.session.userId = id;
-    res.json({ user: { id, username, chips: config.STARTING_CHIPS } });
+    res.json({ user: { id, username, chips: config.STARTING_CHIPS, avatar } });
   } catch (err) {
     console.error('[auth] register 失败:', err);
     res.status(500).json({ message: '注册失败，请稍后重试' });
@@ -167,7 +173,7 @@ router.post('/login', async (req, res) => {
     }
 
     req.session.userId = user.id;
-    res.json({ user: { id: user.id, username: user.username, chips: user.chips } });
+    res.json({ user: { id: user.id, username: user.username, chips: user.chips, avatar: user.avatar } });
   } catch (err) {
     console.error('[auth] login 失败:', err);
     res.status(500).json({ message: '登录失败，请稍后重试' });
@@ -266,6 +272,28 @@ router.get('/history', requireAuth, (req, res) => {
     console.error('[auth] getHistory 失败:', err);
     res.status(500).json({ message: '获取手牌历史失败，请稍后重试' });
   }
+});
+
+// ── 需求7：头像 ─────────────────────────────────────────
+// 可选头像列表（无需登录，注册页也要用）
+router.get('/avatars', (_req, res) => {
+  res.json({ avatars: listAvatars().map(id => ({ id, url: `/avatars/${id}.svg` })) });
+});
+
+// 更换头像（需登录）：写库 + 实时同步到牌桌座位并广播
+router.post('/avatar', requireAuth, (req, res) => {
+  const { avatar } = req.body || {};
+  if (!isValidAvatar(avatar)) {
+    return res.status(400).json({ message: '无效的头像' });
+  }
+  db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatar, req.user.id);
+  try {
+    // 懒加载 table，避免模块加载顺序导致的循环依赖
+    require('./table').changePlayerAvatar(req.user.id, avatar);
+  } catch (e) {
+    // 牌桌未就绪时忽略：DB 已更新，玩家下次进桌即生效
+  }
+  res.json({ ok: true, avatar });
 });
 
 module.exports = { router, requireAuth, simplifyUserAgent };

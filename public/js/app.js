@@ -27,6 +27,9 @@ const AudioEngine = {
   bgm: null,
   bgmPlaying: false,
   proceduralInterval: null,
+  playlist: [],        // 本地曲库 [{ file, name, url }]，由后端扫描 public/audio/ 得到
+  currentIndex: 0,     // 当前播放曲目索引
+  _errorStreak: 0,     // 连续加载失败计数，用于判断是否整张列表都不可用
 
   init() {
     // 兼容浏览器静音唤醒策略
@@ -41,18 +44,31 @@ const AudioEngine = {
     document.addEventListener('click', initCtx, { once: true });
     document.addEventListener('touchstart', initCtx, { once: true });
 
-    // 初始化 BGM 实例 (Mixkit 极其舒缓优雅的爵士乐)
-    this.bgm = new Audio('https://assets.mixkit.co/music/preview/mixkit-smooth-jazz-2067.mp3');
-    this.bgm.loop = true;
-    this.bgm.volume = 0.06; // 细腻舒适的环境音量
+    // BGM 播放器实例（src 在 playTrack 时按曲库设置，不再写死任何外部 CDN）
+    this.bgm = new Audio();
+    this.bgm.loop = false;   // 单曲不循环，靠 'ended' 自动切下一首（整张列表循环）
+    this.bgm.volume = 0.18;  // 本地 mp3 通常比之前的环境音量响，调到舒适区间
 
-    // 监听网络加载错误或跨域拦截，无缝降级到 procedural 实时合成
+    // 一首播完自动切下一首（到列表末尾回到第一首）
+    this.bgm.addEventListener('ended', () => {
+      if (this.bgmPlaying && this.playlist.length) this.nextTrack();
+    });
+
+    // 当前曲目加载失败：先尝试下一首；若整张列表都不可用，降级到 Web Audio 合成爵士乐
     this.bgm.addEventListener('error', () => {
-      console.warn('[AudioEngine] 外部爵士乐 BGM 加载失败，无缝降级至 Web Audio 实时合成 Lo-Fi 爵士乐。');
-      if (this.bgmPlaying && !this.proceduralInterval) {
+      if (!this.bgmPlaying) return;
+      this._errorStreak += 1;
+      if (this.playlist.length && this._errorStreak < this.playlist.length) {
+        console.warn('[AudioEngine] 曲目加载失败，尝试下一首。');
+        this.nextTrack();
+      } else {
+        console.warn('[AudioEngine] 本地曲库不可用，降级至 Web Audio 实时合成 Lo-Fi 爵士乐。');
         this._startProceduralJazz();
       }
     });
+
+    // 异步拉取后端扫描得到的本地曲库（不阻塞启动）
+    this._loadPlaylist();
 
     // 读取本地音乐偏好
     const savedMusic = localStorage.getItem('poker_night_bgm');
@@ -73,13 +89,13 @@ const AudioEngine = {
     const btn = document.getElementById('btn-music');
     if (btn) {
       if (play) {
-        btn.textContent = '🎷 爵士乐: 开';
+        btn.textContent = '🎵 音乐: 开';
         btn.style.borderColor = 'var(--gold)';
         btn.style.background = 'rgba(201, 168, 76, 0.15)';
         btn.style.boxShadow = '0 0 10px rgba(201, 168, 76, 0.4)';
         btn.style.color = 'var(--gold-light)';
       } else {
-        btn.textContent = '🎷 爵士乐: 关';
+        btn.textContent = '🎵 音乐: 关';
         btn.style.borderColor = 'rgba(201, 168, 76, 0.3)';
         btn.style.background = 'transparent';
         btn.style.boxShadow = 'none';
@@ -90,6 +106,7 @@ const AudioEngine = {
     if (!play) {
       if (this.bgm) this.bgm.pause();
       this._stopProceduralJazz();
+      this._updateMusicUI();
       return;
     }
 
@@ -97,16 +114,74 @@ const AudioEngine = {
       this.ctx.resume();
     }
 
-    this.bgm.play().then(() => {
-      this._stopProceduralJazz(); // 加载成功则停用合成音乐
-    }).catch(() => {
-      console.log('[AudioEngine] 浏览器自动播放拦截，改用 Web Audio 实时合成优雅的 Lo-Fi 爵士乐。');
+    // 有本地曲库就播当前曲目；曲库为空则降级到 Web Audio 合成爵士乐兜底
+    if (this.playlist.length) {
+      this.playTrack(this.currentIndex);
+    } else {
+      console.log('[AudioEngine] 本地曲库为空，使用 Web Audio 实时合成 Lo-Fi 爵士乐兜底。');
       this._startProceduralJazz();
-    });
+    }
+    this._updateMusicUI();
   },
 
   toggleBGM() {
     this.setBGM(!this.bgmPlaying);
+  },
+
+  // 拉取后端扫描 public/audio/ 得到的本地曲库
+  async _loadPlaylist() {
+    try {
+      const res  = await fetch('/api/music/playlist', { credentials: 'same-origin' });
+      const data = await res.json();
+      this.playlist = Array.isArray(data.tracks) ? data.tracks : [];
+      console.log(`[AudioEngine] 已加载本地曲库 ${this.playlist.length} 首。`);
+    } catch (e) {
+      this.playlist = [];
+      console.warn('[AudioEngine] 加载本地曲库失败，将使用合成爵士乐兜底。', e);
+    }
+    this._updateMusicUI();
+    // 若用户已开启音乐、且此前在用合成兜底，曲库就绪后无缝切到真实曲目
+    if (this.bgmPlaying && this.playlist.length && this.proceduralInterval) {
+      this.playTrack(this.currentIndex);
+    }
+  },
+
+  // 播放指定索引的曲目（索引自动取模，支持越界回绕）
+  playTrack(index) {
+    if (!this.playlist.length) return;
+    const n = this.playlist.length;
+    this.currentIndex = ((index % n) + n) % n;
+    const track = this.playlist[this.currentIndex];
+    this._stopProceduralJazz();   // 切到真实曲目，停掉合成兜底
+    this.bgm.src = track.url;
+    this.bgm.play().then(() => {
+      this._errorStreak = 0;      // 成功播放，重置失败计数
+    }).catch(() => {
+      console.log('[AudioEngine] 浏览器自动播放被拦截，等待用户交互后再播。');
+    });
+    this._updateMusicUI();
+  },
+
+  // 切到下一首（到列表末尾回到第一首）
+  nextTrack() {
+    if (!this.playlist.length) return;
+    this.playTrack(this.currentIndex + 1);
+  },
+
+  // 同步「下一首」按钮可见性与当前曲名显示
+  _updateMusicUI() {
+    const nextBtn = document.getElementById('btn-music-next');
+    const label   = document.getElementById('music-track');
+    const hasList = this.playlist.length > 0;
+    if (nextBtn) nextBtn.style.display = hasList ? '' : 'none';
+    if (label) {
+      if (hasList && this.bgmPlaying) {
+        label.textContent = '♪ ' + this.playlist[this.currentIndex].name;
+        label.style.display = '';
+      } else {
+        label.style.display = 'none';
+      }
+    }
   },
 
   // 纯原生振荡器生成 100% 离线、零延迟高清音效
@@ -396,6 +471,9 @@ const AudioEngine = {
 
 const App = {
 
+  // 单桌最大座位数（须与后端 config.MAX_SEATS 一致）
+  MAX_SEATS: 10,
+
   state: {
     user: null,       // { username, chips }
     game: null,       // 最新 GameState
@@ -418,6 +496,8 @@ const App = {
     this._bindGameEvents();
     this._bindHistoryEvents();
     this._bindRaiseSlider();
+    this._setupOrientation();
+    this._initAvatars();   // 需求7：加载头像选项 + 绑定注册选择器/换头像弹窗
 
     // 德州规则展开开关绑定
     const toggleBtn = document.getElementById('btn-toggle-rules');
@@ -444,6 +524,22 @@ const App = {
     } catch {
       this._showView('auth');
     }
+  },
+
+  /**
+   * 自动检测屏幕方向（需求 3）：竖屏给 <body> 加 .portrait，横屏/桌面加 .landscape。
+   * CSS 据此切换专用布局；方向变化（手机旋转）时实时更新。
+   */
+  _setupOrientation() {
+    const mq = window.matchMedia('(orientation: portrait)');
+    const apply = (matches) => {
+      document.body.classList.toggle('portrait', matches);
+      document.body.classList.toggle('landscape', !matches);
+    };
+    apply(mq.matches);
+    // Safari 旧版只支持 addListener
+    if (mq.addEventListener) mq.addEventListener('change', (e) => apply(e.matches));
+    else if (mq.addListener) mq.addListener((e) => apply(e.matches));
   },
 
   // ── HTTP API 辅助 ─────────────────────────────────
@@ -575,7 +671,7 @@ const App = {
       if (password !== confirm) { errEl.textContent = '两次密码不一致'; return; }
 
       try {
-        const { user } = await this._apiPost('/api/register', { username, password });
+        const { user } = await this._apiPost('/api/register', { username, password, avatar: this._selectedRegAvatar });
         this._onLoginSuccess(user);
       } catch (err) {
         errEl.textContent = err.message || '注册失败';
@@ -589,6 +685,7 @@ const App = {
     document.getElementById('header-username').textContent = user.username;
     document.getElementById('header-chips').textContent   = user.chips;
     document.getElementById('hero-initials').textContent  = user.username.charAt(0).toUpperCase();
+    this._setAvatar(document.querySelector('#seat-0 .seat-avatar'), { avatar: user.avatar, username: user.username });
     document.getElementById('hero-name').textContent      = user.username;
     document.getElementById('hero-chips').textContent     = user.chips;
     document.getElementById('history-chips').textContent  = user.chips;
@@ -600,6 +697,116 @@ const App = {
     this._showLobby();
     // session cookie 同源握手时浏览器自动带上
     SocketClient.connect();
+  },
+
+  // ── 需求7：头像 ──────────────────────────────────
+  _avatarUrl(id) { return `/avatars/${id}.svg`; },
+
+  // 渲染某个 .seat-avatar 容器：有 avatar 显示图片，否则回退首字母
+  _setAvatar(containerEl, { avatar, username } = {}) {
+    if (!containerEl) return;
+    let img = containerEl.querySelector('.avatar-img');
+    const initials = containerEl.querySelector('.avatar-initials');
+    if (avatar) {
+      if (!img) {
+        img = document.createElement('img');
+        img.className = 'avatar-img';
+        containerEl.appendChild(img);
+      }
+      img.src = this._avatarUrl(avatar);
+      img.alt = username || '';
+      img.style.display = '';
+      if (initials) initials.style.display = 'none';
+    } else {
+      if (img) img.style.display = 'none';
+      if (initials) {
+        initials.style.display = '';
+        initials.textContent = username ? username.charAt(0).toUpperCase() : '?';
+      }
+    }
+  },
+
+  // 加载可选头像，初始化注册页选择器 + 换头像弹窗
+  async _initAvatars() {
+    try {
+      const res  = await fetch('/api/avatars', { credentials: 'same-origin' });
+      const data = await res.json();
+      this._avatarOptions = Array.isArray(data.avatars) ? data.avatars : [];
+    } catch (e) {
+      this._avatarOptions = [];
+    }
+    // 默认选中第一个，供注册提交使用
+    this._selectedRegAvatar = this._avatarOptions[0] ? this._avatarOptions[0].id : null;
+    this._renderAvatarGrid(
+      document.getElementById('reg-avatar-grid'),
+      this._selectedRegAvatar,
+      (id) => { this._selectedRegAvatar = id; }
+    );
+
+    const btn = document.getElementById('btn-avatar');
+    if (btn) btn.addEventListener('click', () => this._openAvatarModal());
+    const close = document.getElementById('avatar-modal-close');
+    if (close) close.addEventListener('click', () => this._closeAvatarModal());
+    const overlay = document.getElementById('avatar-modal-overlay');
+    if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) this._closeAvatarModal(); });
+  },
+
+  // 把头像网格渲染进 container；点选回调 onPick(id)
+  _renderAvatarGrid(container, selectedId, onPick) {
+    if (!container) return;
+    container.innerHTML = '';
+    (this._avatarOptions || []).forEach(opt => {
+      const cell = document.createElement('div');
+      cell.className = 'avatar-opt' + (opt.id === selectedId ? ' selected' : '');
+      cell.innerHTML = `<img src="${opt.url}" alt="${opt.id}">`;
+      cell.addEventListener('click', () => {
+        container.querySelectorAll('.avatar-opt').forEach(c => c.classList.remove('selected'));
+        cell.classList.add('selected');
+        onPick(opt.id);
+      });
+      container.appendChild(cell);
+    });
+  },
+
+  _openAvatarModal() {
+    const current = this.state.user ? this.state.user.avatar : null;
+    this._renderAvatarGrid(
+      document.getElementById('avatar-modal-grid'),
+      current,
+      (id) => this._changeAvatar(id)
+    );
+    document.getElementById('avatar-modal-overlay').classList.add('active');
+  },
+
+  _closeAvatarModal() {
+    document.getElementById('avatar-modal-overlay').classList.remove('active');
+  },
+
+  // 提交更换头像（服务端写库 + 按用户名广播给全桌）
+  async _changeAvatar(id) {
+    try {
+      await this._apiPost('/api/avatar', { avatar: id });
+      if (this.state.user) this.state.user.avatar = id;
+      this._setAvatar(document.querySelector('#seat-0 .seat-avatar'),
+        { avatar: id, username: this.state.user ? this.state.user.username : null });
+      this._closeAvatarModal();
+    } catch (e) {
+      console.error('[App] 更换头像失败:', e.message);
+    }
+  },
+
+  // 收到头像更新广播：按用户名定位席位（与座位旋转无关）
+  onAvatarUpdate({ username, avatar }) {
+    if (this.state.user && username === this.state.user.username) {
+      this.state.user.avatar = avatar;
+      this._setAvatar(document.querySelector('#seat-0 .seat-avatar'), { avatar, username });
+    }
+    const players = (this.state.game && this.state.game.players) || [];
+    const p = players.find(pl => pl.username === username);
+    if (p && p.seatId !== 0) {
+      p.avatar = avatar;
+      this._setAvatar(document.querySelector(`#seat-${p.seatId} .seat-avatar`), { avatar, username });
+    }
   },
 
   // ── 大厅蒙层 / 等待角标 ───────────────────────────
@@ -619,7 +826,7 @@ const App = {
 
   _updateLobbyCount(n) {
     document.getElementById('lobby-count').textContent = String(n);
-    document.getElementById('waiting-count').textContent = `${n} / 6`;
+    document.getElementById('waiting-count').textContent = `${n} / ${App.MAX_SEATS}`;
   },
 
   // ── 游戏内事件 ────────────────────────────────────
@@ -647,6 +854,10 @@ const App = {
 
     document.getElementById('btn-music').addEventListener('click', () => {
       AudioEngine.toggleBGM();
+    });
+
+    document.getElementById('btn-music-next').addEventListener('click', () => {
+      AudioEngine.nextTrack();
     });
 
     // 大厅蒙层的关闭按钮 + 角标点击切换
@@ -921,9 +1132,9 @@ const App = {
       }
     }
 
-    // 清理离桌或不在本局中的物理对手座位
+    // 清理离桌或不在本局中的物理对手座位（相对座位 1..MAX_SEATS-1）
     const activeSeatIds = new Set((state.players || []).map(p => p.seatId));
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= App.MAX_SEATS - 1; i++) {
       if (!activeSeatIds.has(i)) {
         this.clearPlayerSeat(i);
       }
@@ -1032,7 +1243,7 @@ const App = {
       nameEl.innerHTML = player.username + badgeHtml;
     }
     seat.querySelector('.seat-chips-val').textContent = `${player.chips}`;
-    seat.querySelector('.avatar-initials').textContent = player.username.charAt(0).toUpperCase();
+    this._setAvatar(seat.querySelector('.seat-avatar'), player);
 
     const betBadge = seat.querySelector('.seat-bet-badge');
     if (player.bet) {
@@ -1086,7 +1297,7 @@ const App = {
     if (!seat) return;
     seat.querySelector('.seat-name').textContent      = '空座';
     seat.querySelector('.seat-chips-val').textContent = '–';
-    seat.querySelector('.avatar-initials').textContent = '?';
+    this._setAvatar(seat.querySelector('.seat-avatar'), { avatar: null, username: null });
     seat.querySelector('.seat-bet-badge').hidden = true;
     seat.querySelector('.seat-cards').style.opacity = '1';
     seat.querySelector('.seat-cards').innerHTML  = ''; // 空座时不显示手牌占位背部
@@ -1376,6 +1587,7 @@ const App = {
         heroSeat.classList.remove('offline');
       }
     }
+    this._setAvatar(document.querySelector('#seat-0 .seat-avatar'), { avatar: player.avatar, username: player.username });
     const heroNameEl = document.getElementById('hero-name');
     if (heroNameEl && this.state.user) {
       heroNameEl.textContent = this.state.user.username;

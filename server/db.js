@@ -29,7 +29,8 @@ db.exec(`
     lifetime_profit INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL,
     last_login_ip   TEXT,
-    last_login_ua   TEXT
+    last_login_ua   TEXT,
+    avatar          TEXT
   );
 
   CREATE TABLE IF NOT EXISTS hand_history (
@@ -75,6 +76,14 @@ try {
   // 忽略列已存在的错误
 }
 
+// 热升级（需求7）：为 users 表添加 avatar 字段（头像 id，如 'avatar-07'；NULL 表示未设置）
+try {
+  db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+  console.log('[db] 成功升级 users 表，添加 avatar 字段');
+} catch (err) {
+  // 忽略列已存在的错误
+}
+
 // ── Step 6: 筹码更新与手牌历史持久化事务 ───────────────────
 const updateChipsStmt = db.prepare('UPDATE users SET chips = ?, lifetime_profit = lifetime_profit + ? WHERE id = ?');
 const insertHistoryStmt = db.prepare(`
@@ -100,6 +109,17 @@ db.saveHandResults = db.transaction((handId, endedAt, players, actionLog, commun
   }
 });
 
-module.exports = db;
+// ── 需求8(GM)：删除玩家级联清理 ───────────────────────────
+// hand_history 的外键未声明 ON DELETE CASCADE，且 foreign_keys=ON，
+// 直接删 users 会被外键拦住，所以必须「先删该用户的手牌历史，再删用户」，并包成原子事务。
+const deleteHistoryByUserStmt = db.prepare('DELETE FROM hand_history WHERE user_id = ?');
+const deleteUserStmt          = db.prepare('DELETE FROM users WHERE id = ?');
 
+db.deleteUserCascade = db.transaction((userId) => {
+  const removedHands = deleteHistoryByUserStmt.run(userId).changes;
+  const removedUser  = deleteUserStmt.run(userId).changes;
+  return { removedHands, removedUser };
+});
+
+module.exports = db;
 

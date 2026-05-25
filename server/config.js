@@ -13,6 +13,9 @@ module.exports = {
   SESSION_SECRET:     process.env.SESSION_SECRET || 'dev-only-change-me-in-prod',
   SESSION_MAX_AGE_MS: 30 * 24 * 60 * 60 * 1000,  // 30 天
 
+  // 管理后台密码（登录一次即在 session 内置 isAdmin，后续操作免密）。生产务必用环境变量覆盖默认值。
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin888',
+
   // SQLite 数据库
   DB_PATH: process.env.DB_PATH || path.join(__dirname, '..', 'data', 'poker.db'),
 
@@ -21,4 +24,8 @@ module.exports = {
   SMALL_BLIND:       5,
   BIG_BLIND:         10,
   ACTION_TIMEOUT_MS: 30 * 1000,
+
+  // 单桌容量（V2：扩为最多 10 人入座）
+  MAX_SEATS:  10,  // 物理座位数，全部可入座下注
+  MAX_ONLINE: 10,  // 房间最大在线人数（坐下 + 旁观）
 };

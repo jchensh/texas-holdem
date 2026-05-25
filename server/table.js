@@ -15,9 +15,9 @@ const { Game } = require('./engine/game');
 class Table {
   constructor() {
     this.io = null;
-    // 6 个物理绝对座位 (0..5)
+    // MAX_SEATS 个物理绝对座位 (0..MAX_SEATS-1，V2 为 10 座)
     // 存放: null 或 { userId, username, chips, socketIds: Set<string> }
-    this.seats = Array(6).fill(null);
+    this.seats = Array(config.MAX_SEATS).fill(null);
     // 旁观者 socket.id -> { userId, username, chips, socket }
     this.spectators = new Map();
     // 当前德扑引擎 Game 实例
@@ -90,8 +90,8 @@ class Table {
     // 2. 检查该玩家是否已经在旁观列表中
     for (const spec of this.spectators.values()) {
       if (spec.userId === userId) {
-        // 多 Tab 旁观，直接记录
-        this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket });
+        // 多 Tab 旁观，直接记录（沿用该用户已有的旁观起始时间）
+        this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, avatar: user.avatar, socket, connectedAt: spec.connectedAt || Date.now() });
         socket.data.seatId = null;
         this.syncLobbyState();
         if (this.game) {
@@ -101,10 +101,10 @@ class Table {
       }
     }
 
-    // 3. 全新连接：校验房间最大人数限制（最多 10 人在线）
+    // 3. 全新连接：校验房间最大人数限制
     const onlineIds = this.getUniqueOnlineUsers();
-    if (onlineIds.size >= 10 && !onlineIds.has(userId)) {
-      socket.emit('error', { message: '房间人数已满（最多 10 人在线）' });
+    if (onlineIds.size >= config.MAX_ONLINE && !onlineIds.has(userId)) {
+      socket.emit('error', { message: `房间人数已满（最多 ${config.MAX_ONLINE} 人在线）` });
       socket.disconnect(true);
       return;
     }
@@ -117,7 +117,9 @@ class Table {
         userId,
         username: user.username,
         chips: user.chips,
-        socketIds: new Set([socket.id])
+        avatar: user.avatar,
+        socketIds: new Set([socket.id]),
+        connectedAt: Date.now()   // 入座时间，用于后台统计在线时长
       };
       socket.data.seatId = emptyIndex;
       console.log(`[Table] 玩家 ${user.username} 自动分配坐下座位 ${emptyIndex} (${socket.id})`);
@@ -129,7 +131,7 @@ class Table {
       });
     } else {
       // 满员或者游戏正在进行中，先作为观战者
-      this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, socket });
+      this.spectators.set(socket.id, { userId, username: user.username, chips: user.chips, avatar: user.avatar, socket, connectedAt: Date.now() });
       socket.data.seatId = null;
       console.log(`[Table] 玩家 ${user.username} 作为旁观者加入 (${socket.id})`);
     }
@@ -254,9 +256,10 @@ class Table {
       this.dealerSeat = this.seats.findIndex(Boolean);
     } else {
       // 顺时针寻找下一位有座的物理席位
+      const N = this.seats.length;
       let nextDealer = this.dealerSeat;
-      for (let i = 1; i <= 6; i++) {
-        const idx = (this.dealerSeat + i) % 6;
+      for (let i = 1; i <= N; i++) {
+        const idx = (this.dealerSeat + i) % N;
         if (this.seats[idx]) {
           nextDealer = idx;
           break;
@@ -545,7 +548,9 @@ class Table {
           userId: spec.userId,
           username: spec.username,
           chips: spec.chips,
-          socketIds: new Set([socketId])
+          avatar: spec.avatar,
+          socketIds: new Set([socketId]),
+          connectedAt: spec.connectedAt || Date.now()   // 沿用其旁观期间的在线起始时间
         };
         const socket = this.io.sockets.sockets.get(socketId);
         if (socket) {
@@ -609,20 +614,24 @@ class Table {
     if (!data || typeof data !== 'object') return data;
     
     const clone = JSON.parse(JSON.stringify(data));
+    // 座位数（V2 为 10），相对旋转的取模基数
+    const N = this.seats.length;
 
     const translateGameState = (state) => {
       if (!state) return;
+      // 先按绝对座位算出庄家相对位，再旋转 dealerSeat，避免后续比较时基准被覆盖
+      const absDealer = state.dealerSeat;
       if (state.currentSeat !== null && state.currentSeat !== undefined) {
-        state.currentSeat = (state.currentSeat - viewerSeatId + 6) % 6;
+        state.currentSeat = (state.currentSeat - viewerSeatId + N) % N;
       }
       if (state.dealerSeat !== null && state.dealerSeat !== undefined) {
-        state.dealerSeat = (state.dealerSeat - viewerSeatId + 6) % 6;
+        state.dealerSeat = (state.dealerSeat - viewerSeatId + N) % N;
       }
       if (Array.isArray(state.players)) {
         state.players.forEach(p => {
           const absSeat = p.seatId;
-          p.seatId = (absSeat - viewerSeatId + 6) % 6;
-          p.isDealer = absSeat === state.dealerSeat;
+          p.seatId = (absSeat - viewerSeatId + N) % N;
+          p.isDealer = absSeat === absDealer;
         });
         state.players.sort((a, b) => a.seatId - b.seatId);
       }
@@ -630,14 +639,14 @@ class Table {
         if (Array.isArray(state.results.summary)) {
           state.results.summary.forEach(s => {
             const absSeat = s.seatId;
-            s.seatId = (absSeat - viewerSeatId + 6) % 6;
+            s.seatId = (absSeat - viewerSeatId + N) % N;
           });
         }
         if (state.results.hands && typeof state.results.hands === 'object') {
           const relHands = {};
           for (const [absSeatStr, handData] of Object.entries(state.results.hands)) {
             const absSeat = parseInt(absSeatStr, 10);
-            const relSeat = (absSeat - viewerSeatId + 6) % 6;
+            const relSeat = (absSeat - viewerSeatId + N) % N;
             relHands[relSeat] = handData;
           }
           state.results.hands = relHands;
@@ -657,7 +666,7 @@ class Table {
     // 3. 处理根级 seatId (例如 player_action / player_joined / chips_update)
     if (clone.seatId !== undefined && clone.seatId !== null) {
       const originalSeatId = data.seatId;
-      clone.seatId = (originalSeatId - viewerSeatId + 6) % 6;
+      clone.seatId = (originalSeatId - viewerSeatId + N) % N;
       if (clone.isHero !== undefined) {
         clone.isHero = (originalSeatId === viewerSeatId);
       }
@@ -691,10 +700,37 @@ class Table {
       const seat = this.seats.find(s => s && s.username === p.username);
       if (seat) {
         p.isOffline = (seat.socketIds.size === 0);
+        p.avatar = seat.avatar || null;   // 需求7：把座位头像带进玩家快照，供前端席位渲染
       } else {
         p.isOffline = false;
+        p.avatar = null;
       }
     });
+  }
+
+  // ── 需求7：更换头像后实时同步座位并广播（按用户名广播，与座位旋转无关） ──
+  changePlayerAvatar(userId, avatar) {
+    let username = null;
+
+    const seat = this.seats.find(s => s && s.userId === userId);
+    if (seat) { seat.avatar = avatar; username = seat.username; }
+
+    for (const spec of this.spectators.values()) {
+      if (spec.userId === userId) { spec.avatar = avatar; username = username || spec.username; }
+    }
+
+    // 不在线时从库里取用户名用于广播
+    if (!username) {
+      const u = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+      username = u ? u.username : null;
+    }
+
+    if (username && this.io) {
+      // 按用户名广播：各客户端找到显示该用户名的席位并换头像，无需相对座位转换
+      this.io.emit('avatar_update', { username, avatar });
+    }
+    this.notifyAdmin();
+    return { success: true };
   }
 
   /**
@@ -866,11 +902,13 @@ class Table {
       }
       return {
         seatId,
+        userId: seat.userId,
         username: seat.username,
         chips: seat.chips,
         isOffline: seat.socketIds.size === 0,
         ip,
-        ua
+        ua,
+        connectedAt: seat.connectedAt || null
       };
     }).filter(Boolean);
 
@@ -892,10 +930,12 @@ class Table {
           // 忽略
         }
         spectatorsList.push({
+          userId: spec.userId,
           username: spec.username,
           chips: spec.chips,
-          ip,
-          ua
+ip,
+          ua,
+          connectedAt: spec.connectedAt || null
         });
       }
     }
@@ -973,18 +1013,27 @@ class Table {
     }
     
     const realUsername = user.username; // 拿真实的大小写用户名
-    const newChips = user.chips + amount;
-    
+    // 支持加/减：减筹码时 floor 到 0，避免出现负筹码；effectiveDelta 是实际生效的增量
+    const newChips = Math.max(0, user.chips + amount);
+    const effectiveDelta = newChips - user.chips;
+
+    // 筹码无实际变化（如对已为 0 的玩家继续扣减），直接返回，不广播
+    if (effectiveDelta === 0) {
+      return { success: true, message: `玩家 ${realUsername} 筹码无变化（当前 ${newChips}）` };
+    }
+    const isAdd = effectiveDelta > 0;
+    const absDelta = Math.abs(effectiveDelta);
+
     // 2. 更新数据库
     db.prepare('UPDATE users SET chips = ? WHERE id = ?').run(newChips, user.id);
-    
+
     // 3. 更新大厅旁观者（如果他在旁观）
     for (const [socketId, spec] of this.spectators.entries()) {
       if (spec.username.toLowerCase() === targetName) {
         spec.chips = newChips;
       }
     }
-    
+
     // 4. 更新物理座位上的筹码（如果他已落座）
     const seatIndex = this.seats.findIndex(s => s && s.username.toLowerCase() === targetName);
     if (seatIndex !== -1) {
@@ -992,31 +1041,67 @@ class Table {
       // 广播给所有人，让他们知道该座位筹码变了
       this.broadcast('chips_update', { seatId: seatIndex, chips: newChips });
     }
-    
-    // 5. 更新德州引擎中的筹码（如果游戏正在打且他在打）
+
+    // 5. 更新德州引擎中的筹码（如果游戏正在打且他在打）；引擎手头筹码同样不低于 0
     if (this.game && this.game.phase !== 'ended') {
       const enginePlayer = this.game.players.find(p => p.username.toLowerCase() === targetName);
       if (enginePlayer) {
-        enginePlayer.chips += amount;
+        enginePlayer.chips = Math.max(0, enginePlayer.chips + effectiveDelta);
       }
     }
-    
-    // 6. 全局弹窗广播给所有人！
+
+    // 6. 全局弹窗广播给所有人（区分加 / 扣）
     this.broadcast('global_notification', {
       type: 'buyin',
       username: realUsername,
       seatId: seatIndex,
-      addedAmount: amount,
+      addedAmount: effectiveDelta,
       totalChips: newChips,
-      message: `管理员为玩家 <strong>[${realUsername}]</strong> 额外Buyin充值了 <strong>${amount}</strong> 筹码！<br>当前总筹码量为 <strong>${newChips}</strong>。`
+      message: isAdd
+        ? `管理员为玩家 <strong>[${realUsername}]</strong> 充值了 <strong>${absDelta}</strong> 筹码！<br>当前总筹码量为 <strong>${newChips}</strong>。`
+        : `管理员扣除了玩家 <strong>[${realUsername}]</strong> 的 <strong>${absDelta}</strong> 筹码。<br>当前总筹码量为 <strong>${newChips}</strong>。`
     });
-    
+
     // 7. 同步大厅状态和管理员状态
     this.syncLobbyState();
     this.notifyAdmin();
-    
-    console.log(`[Table] 管理员充值: 玩家 ${realUsername} +${amount} 筹码，当前总计: ${newChips}`);
-    return { success: true, message: `成功为玩家 ${realUsername} 充值 ${amount} 筹码，当前一共有 ${newChips}` };
+
+    console.log(`[Table] 管理员调整筹码: 玩家 ${realUsername} ${isAdd ? '+' : '-'}${absDelta}，当前总计: ${newChips}`);
+    return {
+      success: true,
+      message: isAdd
+        ? `成功为玩家 ${realUsername} 充值 ${absDelta} 筹码，当前一共有 ${newChips}`
+        : `成功扣除玩家 ${realUsername} 的 ${absDelta} 筹码，当前一共有 ${newChips}`
+    };
+  }
+
+  // ── 需求8(GM)：删除玩家（先踢下线，再级联清理账号与手牌历史） ──
+  deletePlayer(username) {
+    const targetName = String(username).toLowerCase();
+    const user = db.prepare('SELECT id, username FROM users WHERE LOWER(username) = ?').get(targetName);
+    if (!user) {
+      return { success: false, message: `未找到玩家 ${username}` };
+    }
+    const realUsername = user.username;
+
+    // 1. 若该玩家当前在线（落座或旁观），先踢下线、释放座位、强制结束其手牌参与
+    this.kickPlayer(realUsername);
+
+    // 2. 级联删除：先删手牌历史（避开外键约束）再删用户，原子事务
+    let removed;
+    try {
+      removed = db.deleteUserCascade(user.id);
+    } catch (err) {
+      console.error('[Table] 删除玩家失败:', err.message);
+      return { success: false, message: `删除玩家 ${realUsername} 失败：${err.message}` };
+    }
+
+    // 3. 同步大厅与管理后台状态
+    this.syncLobbyState();
+    this.notifyAdmin();
+
+    console.log(`[Table] 管理员删除玩家: ${realUsername} (id=${user.id})，连带清理 ${removed.removedHands} 条手牌历史`);
+    return { success: true, message: `已删除玩家 ${realUsername}，并清理其 ${removed.removedHands} 条对局历史` };
   }
 }
 

@@ -633,6 +633,7 @@ index.html
 
 ---
 
+
 ## Step 12 — GitHub README 展示页补全（2026-05-25，commit 本次提交）
 
 **目标**：补齐 GitHub 仓库首页下方的 README 展示区域，让公开仓库在生产服务器直接拉取部署的同时，也能对外清楚说明项目定位、技术栈、启动方式、部署入口和后续路线。
@@ -643,6 +644,73 @@ index.html
 **关键决策**：
 - README 使用相对链接指向 `DEPLOY.md` 和 `FutureRoadmap.md`，确保 GitHub 页面可正常跳转。
 - 仓库继续保持 public，方便服务器直接从 GitHub 拉取部署；README 明确提醒不要提交 `.env`、真实 `SESSION_SECRET`、线上 SQLite 数据库和云端实际配置。
+
+---
+
+## Step 12 — V2 Phase 1：十人桌扩容与移动端竖屏适配（2026-05-25，待提交）
+
+**目标**：进入 V2 第一阶段（高优先级需求 1/2/3）。将牌桌从 6 物理座位扩容为最多 10 人入座，并为手机浏览器竖屏新增专用布局，依屏幕方向自动切换横/竖屏模式。
+
+**产出**：
+- `server/config.js` — 新增 `MAX_SEATS: 10`、`MAX_ONLINE: 10` 两个容量常量，集中管理单桌规模。
+- `server/table.js` — 座位数组改为 `Array(config.MAX_SEATS)`；房间在线上限改用 `config.MAX_ONLINE`；庄家顺时针轮换循环由写死的 `i<=6 / %6` 改为基于 `this.seats.length`。
+- `server/table.js#translateToRelative` — 视角相对座位旋转的取模基数由写死的 `6` 参数化为 `this.seats.length`（=10），使 10 座下每个玩家仍恒在自己屏幕底部、对手顺时针环绕。顺带修复一处既存 bug：`isDealer` 此前用绝对座位与「已被旋转过」的 `dealerSeat` 比较，现改为在旋转前捕获 `absDealer` 再比较。
+- `public/index.html` — 新增 `#seat-6`~`#seat-9` 四个对手席位 DOM（共 9 对手位 + 英雄区）。
+- `public/style.css` — 重排 `#seat-1`~`#seat-9` 为 10-handed 椭圆环绕坐标；新增 `body.portrait` 竖屏专用布局块（相对尺寸牌桌、窄屏座位坐标、操作区吸附视口底部并加大触控热区、隐藏底部规则区与侧栏、英雄区去除 translateX 变换以让固定操作条正确吸底）。
+- `public/js/app.js` — 新增 `App.MAX_SEATS=10` 常量；空座清理循环由 `1..5` 改为 `1..MAX_SEATS-1`；大厅人数分母 `/6` 改为 `/MAX_SEATS`；新增 `_setupOrientation()`，用 `matchMedia('(orientation: portrait)')` 监听屏幕方向，实时为 `<body>` 切换 `.portrait`/`.landscape`（满足需求 3 自动检测）。
+
+**关键决策与发现**：
+- **服务端早已具备视角相对旋转**（集中在 `table.js#translateToRelative`，由 `sendToSocket`/`broadcast` 自动套用），并非如初判存在「非 0 号位玩家英雄区显示错」的多人 bug。Phase 1B 实际工作因此从「新增旋转」收敛为「把旋转的取模基数参数化为 10」，改动更小、风险更低。
+- 相对旋转保留环形几何：`relative = (abs - viewer + N) % N`，空座以「空座」占位呈现（沿用既有渲染）。
+- 移动端按**屏幕方向**切换（非设备类型）：手机竖放→竖屏 UI，横放/桌面→沿用现有布局。
+
+**测试验证**：
+- 单元测试（hand-rank / pot 等）全绿；三个 E2E 脚本（step6 对局流、step7 历史、offline 通知）在 `PORT=3010` 独立运行**各自全部通过**（`npm test` 一把跑会因三脚本同时抢占单桌单例 Table 而互相干扰，属既有限制，非本次回归）。
+- 浏览器预览：登录进入牌局后，桌面横屏（1280×800）下 9 个对手席位沿椭圆均匀环绕、英雄区居底、均在视口内无裁切；手机竖屏（375×812）下 `body.portrait` 生效，9 席位收于窄屏宽度内、操作条吸附视口底部（650–812）且与英雄区无重叠、页面恰好占满一屏不溢出。无控制台报错。
+
+---
+
+## Step 13 — V2 Phase 2：后台密码登录 + 注册玩家查阅 + 实时游戏中玩家列表（2026-05-25，待提交）
+
+**目标**：补齐管理后台运营能力（中优先级需求 4/5 + 需求 8 的鉴权前置）。给零鉴权的 `/admin` 加密码登录门，新增全服注册玩家查阅与详情，并在后台旁观列表上方新增「实时游戏中玩家」面板。
+
+**产出**：
+- `server/config.js` + `.env.example` — 新增 `ADMIN_PASSWORD`（默认 `admin888`，生产用环境变量覆盖）。
+- `server/admin-routes.js`（新增）— 管理后台 HTTP 路由 + `requireAdmin` 中间件：`POST /login`（校验密码后置 `session.isAdmin`）、`POST /logout`、`GET /me`、`GET /players`（全服玩家）、`GET /player/:id`（玩家详情+最近 50 手历史）、`POST /kick`（从 index.js 迁入并加鉴权）。登录一次后操作免密。
+- `server/index.js` — 挂载 `/api/admin` 路由（先于通用 `/api`），移除原零鉴权的内联 kick 路由。
+- `server/admin-socket.js` — `/admin` 命名空间新增鉴权中间件，仅 `session.isAdmin` 的连接可接入实时通道。
+- `server/table.js` — 入座/旁观/补位时记录 `connectedAt`；`getAdminState` 的 onlinePlayers 增加 `userId`/`connectedAt`，spectators 增加 `userId`/`connectedAt`，供后台统计在线时长。
+- `public/admin.html` —
+  - 登录蒙层（默认显示，`/api/admin/me` 鉴权通过才连 socket + 拉玩家列表）、头部「退出登录」按钮、socket `connect_error` 回退登录。
+  - 「全服注册玩家」面板（表格：ID/用户名/筹码/终生净收益/注册时间，点击行弹详情 modal，含统计与近期对局）。
+  - 「实时游戏中玩家」面板置于旁观列表上方（在线状态点/ID/座位/在线时长秒级刷新/筹码）。
+  - 迷你明牌监控板由 6 座扩为 10 座（新增 `seat-abs-6~9` DOM + 坐标，渲染循环与「席位入座 X/10」同步）。
+
+**关键决策**：
+- 鉴权模型：单一管理员密码，登录一次在 cookie-session 置 `isAdmin`，后续 HTTP 路由与 socket 命名空间共用 `requireAdmin` 口径，操作免密（按用户要求）。
+- 「在线时长」= 取座/入列时的 `connectedAt` 到当前；前端 1 秒定时器本地推算并刷新，离线托管期间仍计时、状态另以圆点标识。
+
+**测试验证**：
+- 后台登录：错误密码被拒并提示；正确密码进入、socket 连上、注册玩家表加载（开发库 22 条）。未登录时不建立 socket（鉴权门生效）。
+- 注册玩家详情：点开玩家弹窗正确显示筹码/终生收益/近期手牌（后端 `/api/admin/player/:id` 正常）。
+- 实时游戏中玩家：样本数据校验在线/离线、ID、座位、时长（3分5秒 / 1时2分）、筹码均正确渲染；迷你监控板 10 座全部落在场景内。
+- 回归：三个 E2E（step6 对局流 / step7 历史 / offline 通知）对运行中的服务 `PORT=3000` 独立运行**全部通过**（exit 0），管理后台路由重构与 `getAdminState` 改动无回归。
+
+---
+
+## Step 14 — 移动端竖屏布局修复（真机实测整改）（2026-05-25，待提交）
+
+**背景**：Phase 1 的竖屏布局在真机（竖屏手机浏览器）实测暴露多处遮挡/错位：英雄底牌与信息被底部操作条盖住、公共牌过大压住对手座位、结算弹窗跑到屏幕左侧被裁切、"当前牌型"徽标飘到屏外。本步专门整改。
+
+**根因与修复（均在 `public/style.css` 的 `body.portrait` 块）**：
+- **英雄区被遮挡**：旧方案把操作条单独 `position:fixed` 吸底，而英雄底牌/信息留在牌桌底部 → 被操作条盖住。改为把**整个 `.hero-zone`（牌型徽标 + 底牌 + 信息 + 操作面板）作为一个整体固定到视口底部**，用 `flex-wrap` 让操作面板换到独立整行，底牌/信息在其上方一行，彻底消除遮挡。
+- **公共牌压座位**：竖屏下公共牌仍用桌面尺寸（58×82）。新增 `body.portrait .community-cards .card` 缩小为 40×56 并同步缩小牌面字号；牌桌椭圆与对手座位坐标重新内收，9 座环绕不再与公共牌重叠。
+- **结算弹窗跑偏**：`.settlement-overlay` 基础样式带 `top/left:50% + translate(-50%,-50%)`，之前竖屏只改 `inset:0` 未清 transform → 被推出屏外。改为全视口 `flex` 居中并 `transform:none`。
+- **牌型徽标飘屏外**：`.hand-type-badge` 的 `animation: badgeFadeIn ... forwards` 在结束后保留 `translate(-50%)`，覆盖了我的 `transform:none`。竖屏下追加 `animation:none` 并改 `position:static`，徽标回到居中整行。
+- 牌桌场景高度收为 54vh（上半屏），对手座位、底池、回合横幅字号同步压缩。
+
+**测试验证（预览 375×812，DOM 实测坐标）**：英雄坞固定在视口底部（552–812），牌型徽标居中（10–365）、底牌（598–666）在操作面板（672–804）**之上无重叠**；公共牌（175–231）落在椭圆内、顶部座位（56–141）在牌桌上沿之上不重叠；结算弹窗全屏覆盖且弹窗盒水平居中。截图复核布局整洁、关键信息无遮挡。
+
 
 ---
 

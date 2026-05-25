@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3010;
 const BASE = `http://localhost:${PORT}`;
 
 // 连接真实的数据库以进行后面的断言校验
-const dbPath = path.join(__dirname, '..', 'data', 'poker.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'poker.db');
 const db = new Database(dbPath);
 
 // --- HTTP 辅助（不走系统代理） ---

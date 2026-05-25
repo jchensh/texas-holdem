@@ -924,6 +924,109 @@
       font-size: 18px;
       color: var(--red);
     }
+
+    /* ═══ V2 Phase 2 新增样式 ═══ */
+
+    /* 管理员登录蒙层 */
+    .admin-login-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, #0e1424 0%, #05070f 80%);
+    }
+    .admin-login-card {
+      background: var(--panel-bg, #111827);
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 36px 34px;
+      width: 360px; max-width: 90vw;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.7);
+      text-align: center;
+    }
+    .admin-login-card h2 { font-size: 20px; color: var(--gold); margin-bottom: 6px; }
+    .admin-login-card p { font-size: 12px; color: var(--text-muted); margin-bottom: 22px; }
+    .admin-login-card input {
+      width: 100%; padding: 12px 14px; font-size: 14px;
+      background: #070b19; border: 1.5px solid var(--border);
+      border-radius: 8px; color: #f8fafc; margin-bottom: 14px; box-sizing: border-box;
+    }
+    .admin-login-card input:focus { outline: none; border-color: var(--gold); }
+    .admin-login-card button {
+      width: 100%; padding: 12px; font-size: 15px; font-weight: 800;
+      background: var(--gold); color: #111; border: none; border-radius: 8px; cursor: pointer;
+      transition: transform .1s, filter .15s;
+    }
+    .admin-login-card button:hover { filter: brightness(1.08); }
+    .admin-login-card button:active { transform: scale(.97); }
+    .admin-login-error { color: var(--red); font-size: 12px; min-height: 16px; margin-top: 10px; }
+
+    .admin-logout-btn {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 12px; color: var(--text-muted);
+      cursor: pointer; font-size: 12px; font-weight: 700; transition: background .15s, color .15s;
+    }
+    .admin-logout-btn:hover { background: rgba(239,83,80,0.15); color: #ff8080; border-color: rgba(239,83,80,0.4); }
+
+    /* 实时游戏中玩家列表 */
+    .ingame-list { display: flex; flex-direction: column; gap: 6px; }
+    .ingame-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px; font-size: 12px;
+    }
+    .ingame-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .ingame-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .ingame-status-dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .ingame-status-dot.offline { background: #ef4444; }
+    .ingame-name { font-weight: 700; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ingame-id { color: var(--text-muted); font-size: 10px; }
+    .ingame-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .ingame-dur { color: #93c5fd; font-variant-numeric: tabular-nums; }
+    .ingame-chips { color: var(--gold); font-weight: 700; }
+    .ingame-empty { color: var(--text-muted); font-style: italic; text-align: center; padding: 16px 0; font-size: 12px; }
+
+    /* 全服注册玩家表 */
+    .players-table-wrap { overflow-x: auto; }
+    table.players-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.players-table th, table.players-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    table.players-table th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; }
+    table.players-table tbody tr { cursor: pointer; transition: background .12s; }
+    table.players-table tbody tr:hover { background: rgba(201,168,76,0.08); }
+    table.players-table .pt-chips { color: var(--gold); font-weight: 700; }
+    table.players-table .pt-profit.pos { color: #22c55e; }
+    table.players-table .pt-profit.neg { color: #ef4444; }
+
+    /* 玩家详情弹窗 */
+    .player-modal-overlay {
+      position: fixed; inset: 0; z-index: 5000; display: none;
+      align-items: center; justify-content: center; background: rgba(0,0,0,0.65);
+    }
+    .player-modal-overlay.active { display: flex; }
+    .player-modal {
+      background: #111827; border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 14px; padding: 24px; width: 560px; max-width: 92vw;
+      max-height: 84vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.7);
+    }
+    .player-modal h3 { font-size: 17px; color: var(--gold); margin-bottom: 4px; }
+    .player-modal .pm-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .player-modal .pm-stats { display: flex; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
+    .player-modal .pm-stat { display: flex; flex-direction: column; gap: 2px; }
+    .player-modal .pm-stat .v { font-size: 18px; font-weight: 800; color: #f8fafc; }
+    .player-modal .pm-stat .l { font-size: 11px; color: var(--text-muted); }
+    .player-modal .pm-close { float: right; cursor: pointer; color: var(--text-muted); font-size: 20px; line-height: 1; background: none; border: none; }
+    .player-modal table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .player-modal th, .player-modal td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+
+    /* 10 人桌迷你监控座位坐标（绝对座位 0..9 环绕） */
+    .mini-seat[data-seat="0"] { left: 42%; bottom: 2%; top: auto; }
+    .mini-seat[data-seat="1"] { left: 20%; bottom: 6%; top: auto; }
+    .mini-seat[data-seat="2"] { left: 4%;  bottom: 30%; top: auto; }
+    .mini-seat[data-seat="3"] { left: 2%;  top: 30%; bottom: auto; }
+    .mini-seat[data-seat="4"] { left: 16%; top: 4%;  bottom: auto; }
+    .mini-seat[data-seat="5"] { left: 42%; top: 1%;  bottom: auto; }
+    .mini-seat[data-seat="6"] { left: 68%; top: 4%;  bottom: auto; }
+    .mini-seat[data-seat="7"] { left: 82%; top: 30%; bottom: auto; }
+    .mini-seat[data-seat="8"] { left: 80%; bottom: 30%; top: auto; }
+    .mini-seat[data-seat="9"] { left: 64%; bottom: 6%; top: auto; }
   </style>
 </head>
 <body>
@@ -936,6 +1039,7 @@
     <div class="conn-status">
       <span id="conn-dot" class="status-dot"></span>
       <span id="conn-text">正在建立管理员连接...</span>
+      <button id="admin-logout-btn" class="admin-logout-btn" style="margin-left:14px;" onclick="doAdminLogout()">退出登录</button>
     </div>
   </header>
 
@@ -961,7 +1065,7 @@
         <div class="metric-icon-wrap">♠</div>
         <div class="metric-info">
           <span class="metric-title">当前席位入座</span>
-          <span class="metric-value" id="stat-seated-count">0 / 6</span>
+          <span class="metric-value" id="stat-seated-count">0 / 10</span>
         </div>
       </div>
       <div class="metric-card red">
@@ -1091,6 +1195,62 @@
                 </div>
               </div>
 
+              <!-- 座位 6 -->
+              <div class="mini-seat empty-seat" id="seat-abs-6" data-seat="6">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">6</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 7 -->
+              <div class="mini-seat empty-seat" id="seat-abs-7" data-seat="7">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">7</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 8 -->
+              <div class="mini-seat empty-seat" id="seat-abs-8" data-seat="8">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">8</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 座位 9 -->
+              <div class="mini-seat empty-seat" id="seat-abs-9" data-seat="9">
+                <div class="mini-hole-cards"></div>
+                <div class="mini-seat-body">
+                  <span class="absolute-seat-badge">9</span>
+                  <span class="mini-dealer-btn" hidden>D</span>
+                  <div class="mini-avatar">?</div>
+                  <div class="mini-meta">
+                    <span class="mini-name">空座</span>
+                    <span class="mini-chips">–</span>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -1110,8 +1270,19 @@
         </div>
       </div>
 
-      <!-- 中右：在线用户与旁观列表 -->
-      <div class="lobby-sidebar" style="display: flex; flex-direction: column; min-height: 0;">
+      <!-- 中右：实时游戏中玩家 + 大厅旁观列表 -->
+      <div class="lobby-sidebar" style="display: flex; flex-direction: column; gap: 20px; min-height: 0;">
+        <!-- 实时游戏中玩家（入座中的在线玩家） -->
+        <div class="panel" style="display: flex; flex-direction: column; min-height: 0;">
+          <div class="panel-header">
+            <h2>实时游戏中玩家</h2>
+            <span class="metric-value" id="ingame-count" style="font-size:14px;">0</span>
+          </div>
+          <div class="ingame-list" id="ingame-players-list" style="flex: 1; overflow-y: auto;">
+            <div class="ingame-empty">当前暂无入座玩家</div>
+          </div>
+        </div>
+        <!-- 大厅旁观者列表 -->
         <div class="panel" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
           <div class="panel-header">
             <h2>全员实时网络审计 (IP/设备)</h2>
@@ -1123,6 +1294,30 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- 全服注册玩家 -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>全服注册玩家</h2>
+        <button class="admin-logout-btn" onclick="fetchPlayers()" title="刷新玩家列表">↻ 刷新</button>
+      </div>
+      <div class="players-table-wrap">
+        <table class="players-table">
+          <thead>
+            <tr>
+              <th style="width:60px;">ID</th>
+              <th>用户名</th>
+              <th style="width:110px;">当前筹码</th>
+              <th style="width:120px;">终生净收益</th>
+              <th style="width:170px;">注册时间</th>
+            </tr>
+          </thead>
+          <tbody id="players-table-rows">
+            <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px 0;">点击「刷新」加载玩家列表</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- 底部：最近审计手牌日志 -->
@@ -1158,6 +1353,23 @@
       <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
         无法连接至服务器 `/admin` 数据端口。服务器可能正在重启或网络断线，系统正尝试在后台自动重连...
       </p>
+    </div>
+  </div>
+
+  <!-- 玩家详情弹窗 -->
+  <div class="player-modal-overlay" id="player-modal-overlay" onclick="if(event.target===this)closePlayerModal()">
+    <div class="player-modal" id="player-modal-content"></div>
+  </div>
+
+  <!-- 管理员登录蒙层（默认显示，鉴权通过后隐藏） -->
+  <div class="admin-login-overlay" id="admin-login-overlay">
+    <div class="admin-login-card">
+      <h2>♠ 管理后台</h2>
+      <p>请输入管理员密码以进入控制台</p>
+      <input type="password" id="admin-pw-input" placeholder="管理员密码" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')doAdminLogin()">
+      <button onclick="doAdminLogin()">进 入</button>
+      <div class="admin-login-error" id="admin-login-error"></div>
     </div>
   </div>
 
@@ -1301,12 +1513,19 @@
       socket.on('disconnect', (reason) => {
         console.warn('[Admin] 连接断开:', reason);
         document.getElementById('disconnect-overlay').classList.add('active');
-        
+
         const dot = document.getElementById('conn-dot');
         const text = document.getElementById('conn-text');
         dot.className = 'status-dot';
         text.textContent = '与管理接口断开连接';
         showToast('管理数据通道已断开: ' + reason, 'error');
+      });
+
+      // 鉴权失败（命名空间中间件拒绝）：回到登录蒙层
+      socket.on('connect_error', (err) => {
+        console.warn('[Admin] 连接被拒绝:', err && err.message);
+        if (socket) { socket.disconnect(); socket = null; }
+        showLogin('登录态已失效，请重新登录');
       });
 
       // 实时全量明牌状态推送
@@ -1331,11 +1550,23 @@
 
       // 管理端操作结果反馈
       socket.on('admin_action_result', (res) => {
-        if (res.action === 'kick' || res.action === 'adjust_chips') {
-          if (res.success) {
-            showToast(res.message, 'success');
-          } else {
-            showToast(res.message, 'error');
+        if (res.action === 'kick' || res.action === 'adjust_chips' || res.action === 'delete_player') {
+          showToast(res.message, res.success ? 'success' : 'error');
+        }
+
+        if (res.success && res.action === 'delete_player') {
+          // 删除成功：关闭详情弹窗并刷新注册玩家表
+          closePlayerModal();
+          window.currentDetailPlayer = null;
+          fetchPlayers();
+        }
+
+        if (res.success && res.action === 'adjust_chips') {
+          // 筹码调整成功：刷新注册玩家表筹码；若详情弹窗正开着该玩家，重载弹窗
+          fetchPlayers();
+          const overlay = document.getElementById('player-modal-overlay');
+          if (window.currentDetailPlayer && overlay && overlay.classList.contains('active')) {
+            openPlayerDetail(window.currentDetailPlayer.id);
           }
         }
       });
@@ -1348,8 +1579,12 @@
       // 1. 顶部基础指标更新
       document.getElementById('stat-total-users').textContent = data.systemStats.totalUsers;
       document.getElementById('stat-total-chips').textContent = data.systemStats.totalChips;
-      document.getElementById('stat-seated-count').textContent = `${data.onlinePlayers.length} / 6`;
+      document.getElementById('stat-seated-count').textContent = `${data.onlinePlayers.length} / 10`;
       document.getElementById('stat-spectators-count').textContent = data.spectators.length;
+
+      // 实时游戏中玩家列表（缓存供秒级刷新在线时长）
+      window.lastOnlinePlayers = data.onlinePlayers || [];
+      renderIngamePlayers(window.lastOnlinePlayers);
 
       // 2. 牌桌公共区更新
       const commContainer = document.getElementById('mini-comm-cards');
@@ -1389,8 +1624,8 @@
         }
       }
 
-      // 3. 渲染 6 个物理座位 (0..5)
-      for (let i = 0; i < 6; i++) {
+      // 3. 渲染 10 个物理座位 (0..9)
+      for (let i = 0; i < 10; i++) {
         renderSeat(i, data.gameState, data.onlinePlayers);
       }
 
@@ -1642,8 +1877,35 @@
     }
 
     function triggerAdjustChips(username, amount) {
-      console.log(`[Admin] 发送加筹码指令: 玩家: ${username}, 金额: ${amount}`);
+      console.log(`[Admin] 发送筹码调整指令: 玩家: ${username}, 金额: ${amount}`);
       socket.emit('admin_adjust_chips', { username, amount });
+    }
+
+    // ── 需求8(GM)：玩家详情弹窗内的操作（读 currentDetailPlayer + 输入框） ──
+    function gmAdjust(sign) {
+      const input = document.getElementById('gm-chip-amount');
+      const val = Math.abs(parseInt(input ? input.value : '', 10));
+      if (!val || val <= 0) { showToast('请输入正确的筹码数额！', 'error'); return; }
+      if (!window.currentDetailPlayer) return;
+      triggerAdjustChips(window.currentDetailPlayer.username, sign * val);
+    }
+
+    function gmKick() {
+      if (!window.currentDetailPlayer) return;
+      triggerKick(window.currentDetailPlayer.username);
+    }
+
+    function gmDelete() {
+      if (!window.currentDetailPlayer) return;
+      triggerDeletePlayer(window.currentDetailPlayer.username);
+    }
+
+    function triggerDeletePlayer(username) {
+      const ans = prompt(`⚠️ 危险操作：删除玩家将永久清除其账号与全部对局历史，无法恢复！\n如确认删除，请输入该玩家用户名【${username}】以二次确认：`);
+      if (ans === null) return;                          // 用户取消
+      if (ans.trim() !== username) { showToast('输入的用户名不匹配，已取消删除', 'error'); return; }
+      console.log('[Admin] 发送删除玩家指令:', username);
+      socket.emit('admin_delete_player', { username });
     }
 
     // ══════════════════════════════════════════
@@ -1675,8 +1937,203 @@
       );
     }
 
-    // 启动数据接口连接
-    window.onload = connectAdminSocket;
+    // ══════════════════════════════════════════
+    // 管理员登录鉴权流程（V2 Phase 2）
+    // ══════════════════════════════════════════
+    function showLogin(errMsg) {
+      const overlay = document.getElementById('admin-login-overlay');
+      overlay.style.display = 'flex';
+      const errEl = document.getElementById('admin-login-error');
+      errEl.textContent = errMsg || '';
+      const input = document.getElementById('admin-pw-input');
+      input.value = '';
+      input.focus();
+    }
+    function hideLogin() {
+      document.getElementById('admin-login-overlay').style.display = 'none';
+    }
+
+    async function doAdminLogin() {
+      const pw = document.getElementById('admin-pw-input').value;
+      if (!pw) { document.getElementById('admin-login-error').textContent = '请输入密码'; return; }
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin', body: JSON.stringify({ password: pw })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          document.getElementById('admin-login-error').textContent = data.message || '密码错误';
+          return;
+        }
+        hideLogin();
+        startDashboard();
+      } catch (e) {
+        document.getElementById('admin-login-error').textContent = '网络错误，请重试';
+      }
+    }
+
+    async function doAdminLogout() {
+      try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) {}
+      if (socket) { socket.disconnect(); socket = null; }
+      showLogin('已退出登录');
+    }
+
+    // 鉴权通过后启动：连接实时通道 + 拉取注册玩家列表 + 启动在线时长秒级刷新
+    function startDashboard() {
+      connectAdminSocket();
+      fetchPlayers();
+      if (!window._ingameTicker) {
+        window._ingameTicker = setInterval(() => {
+          if (window.lastOnlinePlayers) renderIngamePlayers(window.lastOnlinePlayers);
+        }, 1000);
+      }
+    }
+
+    async function initAdmin() {
+      try {
+        const me = await fetch('/api/admin/me', { credentials: 'same-origin' }).then(r => r.json());
+        if (me && me.isAdmin) { hideLogin(); startDashboard(); }
+        else { showLogin(); }
+      } catch (e) {
+        showLogin();
+      }
+    }
+
+    // ══════════════════════════════════════════
+    // 实时游戏中玩家列表（需求 5）
+    // ══════════════════════════════════════════
+    function formatDuration(ms) {
+      if (!ms || ms < 0) return '0秒';
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h > 0) return `${h}时${m}分`;
+      if (m > 0) return `${m}分${sec}秒`;
+      return `${sec}秒`;
+    }
+
+    function renderIngamePlayers(players) {
+      const container = document.getElementById('ingame-players-list');
+      const countEl = document.getElementById('ingame-count');
+      if (!container) return;
+      if (countEl) countEl.textContent = players.length;
+      if (!players || players.length === 0) {
+        container.innerHTML = '<div class="ingame-empty">当前暂无入座玩家</div>';
+        return;
+      }
+      const now = Date.now();
+      container.innerHTML = players.map(p => {
+        const online = !p.isOffline;
+        const dur = p.connectedAt ? formatDuration(now - p.connectedAt) : '—';
+        return `
+          <div class="ingame-item">
+            <div class="ingame-left">
+              <span class="ingame-status-dot ${online ? 'online' : 'offline'}"></span>
+              <div style="min-width:0;">
+                <div class="ingame-name">${escapeHTML(p.username)}</div>
+                <div class="ingame-id">ID ${p.userId ?? '?'} · 座位 ${p.seatId} · ${online ? '在线' : '离线托管'}</div>
+              </div>
+            </div>
+            <div class="ingame-right">
+              <span class="ingame-dur">${dur}</span>
+              <span class="ingame-chips">${p.chips}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ══════════════════════════════════════════
+    // 全服注册玩家查阅（需求 4）
+    // ══════════════════════════════════════════
+    async function fetchPlayers() {
+      const rowsEl = document.getElementById('players-table-rows');
+      try {
+        const res = await fetch('/api/admin/players', { credentials: 'same-origin' });
+        if (!res.ok) { rowsEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:20px 0;">加载失败（需管理员登录）</td></tr>'; return; }
+        const { players } = await res.json();
+        if (!players || players.length === 0) {
+          rowsEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px 0;">暂无注册玩家</td></tr>';
+          return;
+        }
+        rowsEl.innerHTML = players.map(p => {
+          const profitCls = p.lifetime_profit >= 0 ? 'pos' : 'neg';
+          const date = new Date(p.created_at);
+          const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+          return `
+            <tr onclick="openPlayerDetail(${p.id})">
+              <td>${p.id}</td>
+              <td>${escapeHTML(p.username)}</td>
+              <td class="pt-chips">${p.chips}</td>
+              <td class="pt-profit ${profitCls}">${p.lifetime_profit >= 0 ? '+' : ''}${p.lifetime_profit}</td>
+              <td>${dateStr}</td>
+            </tr>`;
+        }).join('');
+      } catch (e) {
+        rowsEl.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:20px 0;">网络错误</td></tr>';
+      }
+    }
+
+    async function openPlayerDetail(id) {
+      const overlay = document.getElementById('player-modal-overlay');
+      const content = document.getElementById('player-modal-content');
+      content.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">加载中...</div>';
+      overlay.classList.add('active');
+      try {
+        const res = await fetch(`/api/admin/player/${id}`, { credentials: 'same-origin' });
+        if (!res.ok) { content.innerHTML = '<div style="padding:30px;text-align:center;color:var(--red);">加载失败</div>'; return; }
+        const { player, history } = await res.json();
+        window.currentDetailPlayer = { id: player.id, username: player.username };
+        const date = new Date(player.created_at);
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+        let historyRows = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px 0;">暂无对局历史</td></tr>';
+        if (history && history.length) {
+          historyRows = history.map(h => {
+            const hd = new Date(h.ended_at);
+            const hStr = `${hd.getMonth()+1}-${String(hd.getDate()).padStart(2,'0')} ${String(hd.getHours()).padStart(2,'0')}:${String(hd.getMinutes()).padStart(2,'0')}`;
+            const rmap = { win: '胜', loss: '负', push: '平' };
+            const pc = h.profit >= 0 ? '#22c55e' : '#ef4444';
+            return `<tr><td>${escapeHTML(h.hand_id)}</td><td>${hStr}</td><td>${rmap[h.result]||h.result}</td><td style="color:${pc};">${h.profit>=0?'+':''}${h.profit}</td></tr>`;
+          }).join('');
+        }
+        content.innerHTML = `
+          <button class="pm-close" onclick="closePlayerModal()">×</button>
+          <h3>${escapeHTML(player.username)}</h3>
+          <div class="pm-sub">ID ${player.id} · 注册于 ${dateStr}</div>
+          <div class="pm-stats">
+            <div class="pm-stat"><span class="v" style="color:var(--gold);">${player.chips}</span><span class="l">当前筹码</span></div>
+            <div class="pm-stat"><span class="v" style="color:${player.lifetime_profit>=0?'#22c55e':'#ef4444'};">${player.lifetime_profit>=0?'+':''}${player.lifetime_profit}</span><span class="l">终生净收益</span></div>
+            <div class="pm-stat"><span class="v">${history ? history.length : 0}</span><span class="l">近期手牌数</span></div>
+          </div>
+          <div style="margin:0 0 18px;padding:14px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:10px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">⚙️ GM 操作</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+              <input id="gm-chip-amount" type="number" min="1" placeholder="筹码数额" style="width:120px;padding:7px 10px;background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:6px;color:#f8fafc;font-size:13px;">
+              <button onclick="gmAdjust(1)" style="padding:7px 14px;border:1px solid rgba(34,197,94,0.5);background:rgba(34,197,94,0.12);color:#22c55e;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">＋ 加筹码</button>
+              <button onclick="gmAdjust(-1)" style="padding:7px 14px;border:1px solid rgba(245,158,11,0.5);background:rgba(245,158,11,0.12);color:#f59e0b;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">－ 扣筹码</button>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="gmKick()" style="padding:7px 14px;border:1px solid rgba(245,158,11,0.5);background:transparent;color:#f59e0b;border-radius:6px;cursor:pointer;font-size:13px;">踢下线</button>
+              <button onclick="gmDelete()" style="padding:7px 14px;border:1px solid rgba(239,68,68,0.6);background:rgba(239,68,68,0.12);color:#ef4444;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;">🗑 删除玩家</button>
+            </div>
+          </div>
+          <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">最近对局（最多 50 手）</h4>
+          <table>
+            <thead><tr><th>局编号</th><th>时间</th><th>结果</th><th>盈亏</th></tr></thead>
+            <tbody>${historyRows}</tbody>
+          </table>`;
+      } catch (e) {
+        content.innerHTML = '<div style="padding:30px;text-align:center;color:var(--red);">网络错误</div>';
+      }
+    }
+
+    function closePlayerModal() {
+      document.getElementById('player-modal-overlay').classList.remove('active');
+    }
+
+    // 启动：先做登录鉴权，再进入控制台
+    window.onload = initAdmin;
   </script>
 </body>
 </html>
